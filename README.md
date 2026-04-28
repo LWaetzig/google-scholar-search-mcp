@@ -2,6 +2,16 @@
 
 An MCP (Model Context Protocol) server for searching Google Scholar: papers, authors, citations, and BibTeX entries. Designed to integrate into AI assistants (Claude, etc.) with academic literature search.
 
+## Table of Contents
+1. [Features](#features)
+2. [Installation](#installation)
+3. [Configuration](#configuration)
+4. [Usage](#usage)
+5. [Examples](#examples)
+6. [Rate Limiting](#rate-limiting)
+7. [Troubleshooting](#troubleshooting)
+8. [Contributing](#contributing)
+
 
 ## Features
 
@@ -28,6 +38,9 @@ git clone https://github.com/yourusername/google-scholar-mcp.git
 cd google-scholar-mcp
 pip install -e .
 ```
+
+**Note:** This server uses the [scholarly](https://scholarly.readthedocs.io/) library to access Google Scholar. Respect Google's Terms of Service and use rate limiting appropriately to avoid being blocked.
+
 
 ## Configuration
 
@@ -254,10 +267,6 @@ You've hit Google Scholar's rate limit. Solutions:
 - Verify proxy settings if using a proxy
 
 
-## License
-
-[See LICENSE file](LICENSE)
-
 ## Contributing
 
 Contributions are welcome! Please:
@@ -272,6 +281,6 @@ Contributions are welcome! Please:
 
 For issues, questions, or feature requests, please open an issue on GitHub.
 
----
+## License
 
-**Note:** This server uses the [scholarly](https://scholarly.readthedocs.io/) library to access Google Scholar. Respect Google's Terms of Service and use rate limiting appropriately to avoid being blocked.
+[See LICENSE file](LICENSE)
