@@ -1,4 +1,4 @@
-# Google Scholar MCP
+# google-scholar-mcp
 
 An MCP (Model Context Protocol) server for searching Google Scholar—papers, authors, citations, and BibTeX entries. Designed to integrate into AI assistants (Claude, etc.) with academic literature search.
 
