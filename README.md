@@ -29,7 +29,7 @@ An MCP (Model Context Protocol) server for searching Google Scholar: papers, aut
 ### Requirements
 
 - Python 3.11 or later
-- Dependencies: `mcp[cli]>=1.4.0`, `scholarly>=1.7.11`, `pydantic>=2.0` (see [pyproject.toml}(./pyproject.toml))
+- Dependencies: `mcp[cli]>=1.4.0`, `scholarly>=1.7.11`, `pydantic>=2.0` (see [pyproject.toml](./pyproject.toml))
 
 ### Build from Source
 
