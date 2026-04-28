@@ -1,6 +1,7 @@
 # google-scholar-mcp
 
-An MCP (Model Context Protocol) server for searching Google Scholar—papers, authors, citations, and BibTeX entries. Designed to integrate into AI assistants (Claude, etc.) with academic literature search.
+An MCP (Model Context Protocol) server for searching Google Scholar: papers, authors, citations, and BibTeX entries. Designed to integrate into AI assistants (Claude, etc.) with academic literature search.
+
 
 ## Features
 
@@ -18,9 +19,9 @@ An MCP (Model Context Protocol) server for searching Google Scholar—papers, au
 ### Requirements
 
 - Python 3.11 or later
-- Dependencies: `mcp[cli]>=1.4.0`, `scholarly>=1.7.11`, `pydantic>=2.0`
+- Dependencies: `mcp[cli]>=1.4.0`, `scholarly>=1.7.11`, `pydantic>=2.0` (see [pyproject.toml}(./pyproject.toml))
 
-### From Source
+### Build from Source
 
 ```bash
 git clone https://github.com/yourusername/google-scholar-mcp.git
