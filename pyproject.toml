@@ -1,0 +1,72 @@
+[project]
+name = "google-scholar-search-mcp"
+version = "1.0.0"
+description = "MCP server for searching Google Scholar — papers, authors, citations, and BibTeX"
+requires-python = ">=3.12"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [ { name = "Lucas", email = "development@waetzig.net" } ]
+keywords = ["mcp", "model-context-protocol", "google-scholar", "academic", "papers", "research"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "mcp[cli]>=1.4.0",
+    "scholarly>=1.7.11",
+    "pydantic>=2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=4.0.0",
+    "ruff (>=0.15.12,<0.16.0)",
+    "mypy (>=2.0.0,<3.0.0)",
+]
+docs = [
+    "sphinx (>=9.1.0,<10.0.0)",
+    "sphinx-rtd-theme (>=3.1.0,<4.0.0)"
+]
+
+[project.urls]
+Homepage = "https://github.com/LWaetzig/google-scholar-mcp"
+Repository = "https://github.com/LWaetzig/google-scholar-mcp.git"
+Issues = "https://github.com/LWaetzig/google-scholar-mcp/issues"
+Documentation = "https://personal-public-packages.gitlab.io/google-scholar-mcp"
+
+[project.scripts]
+google-scholar-mcp = "google_scholar_mcp.server:main"
+
+[build-system]
+requires      = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+files = ["src", "tests"]
+pretty = true
+show_error_codes = true
+warn_unused_configs = true
+check_untyped_defs = true
+ignore_missing_imports = true
