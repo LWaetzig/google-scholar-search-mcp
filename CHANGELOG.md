@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.1.2](https://gitlab.com/personal-public-packages/google-scholar-mcp/compare/v1.1.1...v1.1.2) (2026-05-10)
+
+
+### Bug Fixes
+
+* Adding missing readme ([1341f80](https://gitlab.com/personal-public-packages/google-scholar-mcp/commit/1341f80c27d192a7c623cf14a78968943adf30a8))
+
 ## [1.1.1](https://gitlab.com/personal-public-packages/google-scholar-mcp/compare/v1.1.0...v1.1.1) (2026-05-10)
 
 
