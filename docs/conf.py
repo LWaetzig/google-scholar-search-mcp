@@ -1,14 +1,30 @@
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.abspath("../src"))
+
+def _latest_release() -> str:
+    """Return the newest version heading found in ../CHANGELOG.md.
+
+    The changelog is maintained by commit-and-tag-version, so it is the one
+    version source that is also available in CI, where the package itself is
+    not installed (``poetry install --no-root``).
+    """
+    try:
+        with open(os.path.join(os.path.dirname(__file__), "..", "CHANGELOG.md")) as fh:
+            match = re.search(r"^##\s+\[?(\d+\.\d+\.\d+)", fh.read(), re.MULTILINE)
+    except OSError:
+        match = None
+    return match.group(1) if match else "0.0.0"
+
 
 # Project information
 project = "google-scholar-search-mcp"
 author = "Lucas Waetzig"
 copyright = "2026, Lucas Waetzig"
-release = "1.0.0"
-version = "1.0"
+release = _latest_release()
+version = ".".join(release.split(".")[:2])
 
 # General configuration
 extensions = [

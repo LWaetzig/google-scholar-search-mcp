@@ -27,9 +27,9 @@ An MCP (Model Context Protocol) server for searching Google Scholar, built for A
 ## Installation
 
 ### Requirements
-- `Python 3.11` or later
-- Dependencies: `mcp[cli]>=1.4.0`, `scholarly>=1.7.11`, `pydantic>=2.0` (see [pyproject.toml](./pyproject.toml)) 
-  - project uses `uv` for dependency management
+- `Python 3.12` or later
+- Dependencies: `mcp[cli]>=2.3.0`, `scholarly>=1.7.11`, `pydantic>=2.0` (see [pyproject.toml](./pyproject.toml)) 
+  - project uses `poetry` for dependency management
 
 ### Install it from PyPI
 
@@ -40,8 +40,8 @@ pip install google-scholar-search-mcp
 ### Build from Source
 
 ```bash
-git clone https://github.com/LWaetzig/google-scholar-search-mcp.git
-cd google-scholar-search-mcp
+git clone https://github.com/LWaetzig/google-scholar-mcp.git
+cd google-scholar-mcp
 pip install -e .
 ```
 
@@ -62,6 +62,11 @@ Configure the MCP server via environment variables:
 | `GS_PROXY_HTTPS` | — | HTTPS proxy URL (for `single` mode) |
 | `GS_SCRAPERAPI_KEY` | — | ScraperAPI key (for `scraperapi` mode) |
 | `GS_TIMEOUT` | `30` | Request timeout in seconds |
+| `GS_SKILL_URL` | GitHub raw URL of `SKILL.md` | URL advertised to agents in the server instructions; set to an empty string to omit |
+
+### Agent skill
+
+The repository ships [`skills/google-scholar-mcp/SKILL.md`](skills/google-scholar-mcp/SKILL.md), which tells an agent when and how to use the tools (tool choice, rate limits, error handling). The server advertises its URL in the MCP server instructions. Copy the file into your client's skills directory (e.g. `~/.claude/skills/google-scholar-mcp/`) to install it permanently.
 
 ### Proxy Configuration Examples
 
@@ -100,14 +105,13 @@ Add the server to your Claude Desktop configuration:
 | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 
-Add the `google_scholar_mcp` entry under `mcpServers`, replacing the path with the absolute path to your clone:
+Add the `google-scholar` entry under `mcpServers`:
 
 ```json
 {
   "mcpServers": {
     "google-scholar": {
-      "command": "python",
-      "args": ["-m", "google_scholar_mcp.server"],
+      "command": "google-scholar-mcp",
       "env": {
         "GS_MIN_DELAY": "5.0",
         "GS_MAX_DELAY": "15.0",
@@ -125,7 +129,7 @@ After updating the config, restart Claude Desktop. The Google Scholar tools will
 Any MCP client (e.g., Cline, Continue, or custom tools) can use this server. Configure the connection to:
 
 ```
-Command: python -m google_scholar_mcp.server
+Command: google-scholar-mcp
 Transport: stdio
 ```
 

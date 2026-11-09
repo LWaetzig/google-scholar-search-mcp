@@ -5,6 +5,12 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+DEFAULT_SKILL_URL = (
+    "https://raw.githubusercontent.com/LWaetzig/google-scholar-mcp/main/"
+    "skills/google-scholar-mcp/SKILL.md"
+)
+
+
 class ProxyType(str, Enum):
     NONE = "none"
     FREE = "free"
@@ -22,6 +28,7 @@ class Config:
     proxy_https: str | None
     scraperapi_key: str | None
     timeout_seconds: int
+    skill_url: str = DEFAULT_SKILL_URL
 
     @classmethod
     def from_env(cls) -> Config:
@@ -34,4 +41,5 @@ class Config:
             proxy_https=os.getenv("GS_PROXY_HTTPS"),
             scraperapi_key=os.getenv("GS_SCRAPERAPI_KEY"),
             timeout_seconds=int(os.getenv("GS_TIMEOUT", "30")),
+            skill_url=os.getenv("GS_SKILL_URL", DEFAULT_SKILL_URL),
         )

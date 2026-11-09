@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from .config import Config
 from .models import (
@@ -27,13 +27,23 @@ config = Config.from_env()
 scholar = ScholarClient(config)
 limiter = RateLimiter(config.min_delay_seconds, config.max_delay_seconds)
 
-mcp = FastMCP(
-    "Google Scholar",
-    instructions=(
+
+
+def _build_instructions(cfg: Config) -> str:
+    """Return the server instructions, including a pointer to the agent skill."""
+    text = (
         "Search Google Scholar for academic papers, authors, citations, and BibTeX entries. "
         "Rate limiting is applied automatically. For bulk searches, use the bulk_search tool."
-    ),
-)
+    )
+    if cfg.skill_url:
+        text += (
+            "\n\nAn agent skill describing when and how to use these tools "
+            f"(search strategy, rate limits, error handling) is available at: {cfg.skill_url}"
+        )
+    return text
+
+
+mcp = MCPServer("Google Scholar", instructions=_build_instructions(config))
 
 
 @mcp.tool()

@@ -733,6 +733,29 @@ socks = ["socksio (==1.*)"]
 trio = ["trio (>=0.22.0,<1.0)"]
 
 [[package]]
+name = "httpcore2"
+version = "2.16.0"
+description = "A minimal low-level HTTP client."
+optional = false
+python-versions = ">=3.11"
+groups = ["main"]
+markers = "sys_platform != \"emscripten\""
+files = [
+    {file = "httpcore2-2.16.0-py3-none-any.whl", hash = "sha256:5c4358319f2602d984ad93182c9fee5160f22e9da7babdda870a5e7c4e2dc34f"},
+    {file = "httpcore2-2.16.0.tar.gz", hash = "sha256:c72cd0413563b17e1cd8354677dff887466f8ec2551679759e93126534428643"},
+]
+
+[package.dependencies]
+h11 = ">=0.16"
+truststore = ">=0.10"
+
+[package.extras]
+asyncio = ["anyio (>=4.5.0,<5.0)"]
+http2 = ["h2 (>=3,<5)"]
+socks = ["socksio (==1.*)"]
+trio = ["trio (>=0.34.0,<1.0)"]
+
+[[package]]
 name = "httpx"
 version = "0.28.1"
 description = "The next generation HTTP client."
@@ -758,31 +781,60 @@ socks = ["socksio (==1.*)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
-name = "httpx-sse"
-version = "0.4.3"
-description = "Consume Server-Sent Event (SSE) messages with HTTPX."
+name = "httpx2"
+version = "2.16.0"
+description = "The next generation HTTP client."
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.11"
 groups = ["main"]
 files = [
-    {file = "httpx_sse-0.4.3-py3-none-any.whl", hash = "sha256:0ac1c9fe3c0afad2e0ebb25a934a59f4c7823b60792691f779fad2c5568830fc"},
-    {file = "httpx_sse-0.4.3.tar.gz", hash = "sha256:9b1ed0127459a66014aec3c56bebd93da3c1bc8bb6618c8082039a44889a755d"},
+    {file = "httpx2-2.16.0-py3-none-any.whl", hash = "sha256:fd2c5d7909e8d86fe92d53020c310ca0e4e431b838c207c5754b9bbf0308d49a"},
+    {file = "httpx2-2.16.0.tar.gz", hash = "sha256:0d54c98128e8f2ff7fbbde0fca8c359e5f032edeaaaac443cdb7f31f685bcd7f"},
+]
+
+[package.dependencies]
+anyio = {version = ">=4.10", markers = "sys_platform != \"emscripten\""}
+httpcore2 = {version = "2.16.0", markers = "sys_platform != \"emscripten\""}
+httpx2-jsfetch = {version = "*", markers = "sys_platform == \"emscripten\" and python_version >= \"3.12\""}
+idna = ">=3.18"
+truststore = {version = ">=0.10", markers = "sys_platform != \"emscripten\""}
+typing-extensions = {version = ">=4.5.0", markers = "python_version < \"3.13\""}
+
+[package.extras]
+brotli = ["brotli (>=1.2.0) ; platform_python_implementation == \"CPython\"", "brotlicffi (>=1.2.0.2) ; platform_python_implementation != \"CPython\""]
+cli = ["click (>=8.4.2)", "pygments (==2.*)", "rich (>=10,<16)"]
+http2 = ["h2 (>=3,<5)"]
+socks = ["socksio (==1.*)"]
+ws = ["wsproto (>=1.2)"]
+zstd = ["backports-zstd (>=1.0.0) ; python_version <= \"3.13\""]
+
+[[package]]
+name = "httpx2-jsfetch"
+version = "1.0"
+description = "httpx2 transports for Emscripten/Pyodide, backed by the JavaScript fetch API."
+optional = false
+python-versions = ">=3.12"
+groups = ["main"]
+markers = "sys_platform == \"emscripten\""
+files = [
+    {file = "httpx2_jsfetch-1.0-py3-none-any.whl", hash = "sha256:cb916b707601e69a07721aabc8f3f6659be3a6893bc1ff5c6f9e02241df2da32"},
+    {file = "httpx2_jsfetch-1.0.tar.gz", hash = "sha256:70a0e3eabfef7cce5ad9c629f7d01ca05e418f586646f4ddf14782e4c1454c60"},
 ]
 
 [[package]]
 name = "idna"
-version = "3.13"
+version = "3.20"
 description = "Internationalized Domain Names in Applications (IDNA)"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main", "docs"]
 files = [
-    {file = "idna-3.13-py3-none-any.whl", hash = "sha256:892ea0cde124a99ce773decba204c5552b69c3c67ffd5f232eb7696135bc8bb3"},
-    {file = "idna-3.13.tar.gz", hash = "sha256:585ea8fe5d69b9181ec1afba340451fba6ba764af97026f92a91d4eef164a242"},
+    {file = "idna-3.20-py3-none-any.whl", hash = "sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c"},
+    {file = "idna-3.20.tar.gz", hash = "sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44"},
 ]
 
 [package.extras]
-all = ["mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
+all = ["coverage (>=7.10.0)", "hypothesis (>=6.141.1)", "mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.16.0)", "ty (>=0.0.37)"]
 
 [[package]]
 name = "imagesize"
@@ -804,7 +856,7 @@ description = "Get image size from headers (BMP/PNG/JPEG/JPEG2000/GIF/TIFF/SVG/N
 optional = false
 python-versions = "<3.15,>=3.10"
 groups = ["main", "docs"]
-markers = "python_version < \"3.15\""
+markers = "python_version <= \"3.14\""
 files = [
     {file = "imagesize-2.0.0-py2.py3-none-any.whl", hash = "sha256:5667c5bbb57ab3f1fa4bc366f4fbc971db3d5ed011fd2715fd8001f782718d96"},
     {file = "imagesize-2.0.0.tar.gz", hash = "sha256:8e8358c4a05c304f1fccf7ff96f036e7243a189e9e42e90851993c558cfe9ee3"},
@@ -1253,38 +1305,59 @@ files = [
 
 [[package]]
 name = "mcp"
-version = "1.27.1"
+version = "2.3.0"
 description = "Model Context Protocol SDK"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "mcp-1.27.1-py3-none-any.whl", hash = "sha256:1af3c4203b329430fde7a87b4fcb6392a041f5cb851fd68fc674016ab4e7c06f"},
-    {file = "mcp-1.27.1.tar.gz", hash = "sha256:0f47e1820f8f8f941466b39749eb1d1839a04caddca2bc60e9d46e8a99914924"},
+    {file = "mcp-2.3.0-py3-none-any.whl", hash = "sha256:dd0c44c089d16453e8ae31a3877a0054d7a2314caaa81f5e0541b9b1734b2377"},
+    {file = "mcp-2.3.0.tar.gz", hash = "sha256:8b147a50441cf059dc88c684e0aeed3687f0aa0f39c6cde7b90330effd2b34d8"},
 ]
 
 [package.dependencies]
-anyio = ">=4.5"
-httpx = ">=0.27.1,<1.0.0"
-httpx-sse = ">=0.4"
+anyio = [
+    {version = ">=4.9", markers = "python_version < \"3.14\""},
+    {version = ">=4.10", markers = "python_version >= \"3.14\""},
+]
+httpx2 = ">=2.10.0"
 jsonschema = ">=4.20.0"
-pydantic = ">=2.11.0,<3.0.0"
-pydantic-settings = ">=2.5.2"
+mcp-types = "2.3.0"
+opentelemetry-api = ">=1.28.0"
+pydantic = ">=2.12.0"
 pyjwt = {version = ">=2.10.1", extras = ["crypto"]}
 python-dotenv = {version = ">=1.0.0", optional = true, markers = "extra == \"cli\""}
 python-multipart = ">=0.0.9"
-pywin32 = {version = ">=310", markers = "sys_platform == \"win32\""}
-sse-starlette = ">=1.6.1"
-starlette = ">=0.27"
+pywin32 = {version = ">=311", markers = "sys_platform == \"win32\""}
+sse-starlette = ">=3.0.0"
+starlette = [
+    {version = ">=0.27", markers = "python_version < \"3.14\""},
+    {version = ">=0.48.0", markers = "python_version >= \"3.14\""},
+]
 typer = {version = ">=0.16.0", optional = true, markers = "extra == \"cli\""}
-typing-extensions = ">=4.9.0"
+typing-extensions = ">=4.13.0"
 typing-inspection = ">=0.4.1"
 uvicorn = {version = ">=0.31.1", markers = "sys_platform != \"emscripten\""}
 
 [package.extras]
 cli = ["python-dotenv (>=1.0.0)", "typer (>=0.16.0)"]
 rich = ["rich (>=13.9.4)"]
-ws = ["websockets (>=15.0.1)"]
+
+[[package]]
+name = "mcp-types"
+version = "2.3.0"
+description = "Model Context Protocol wire types"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "mcp_types-2.3.0-py3-none-any.whl", hash = "sha256:968efdbdaedfab06adae40d378a34395f1090c5921d4be3c9cde283aaf76d91d"},
+    {file = "mcp_types-2.3.0.tar.gz", hash = "sha256:d1e46549edb35ee19a94940fcee6d1addd7e589ab7ea92dda83f5d84781fc362"},
+]
+
+[package.dependencies]
+pydantic = ">=2.12.0"
+typing-extensions = ">=4.13.0"
 
 [[package]]
 name = "mdurl"
@@ -1380,6 +1453,21 @@ files = [
     {file = "mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505"},
     {file = "mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558"},
 ]
+
+[[package]]
+name = "opentelemetry-api"
+version = "1.45.2"
+description = "OpenTelemetry Python API"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_api-1.45.2-py3-none-any.whl", hash = "sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34"},
+    {file = "opentelemetry_api-1.45.2.tar.gz", hash = "sha256:d7b0008e21e5fd61cbe7a7f34ca3b6905a78ab677d9bc395e299359c75cda6b4"},
+]
+
+[package.dependencies]
+typing-extensions = ">=4.5.0"
 
 [[package]]
 name = "outcome"
@@ -1608,30 +1696,6 @@ files = [
 
 [package.dependencies]
 typing-extensions = ">=4.14.1"
-
-[[package]]
-name = "pydantic-settings"
-version = "2.14.1"
-description = "Settings management using Pydantic"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "pydantic_settings-2.14.1-py3-none-any.whl", hash = "sha256:6e3c7edfd8277687cdc598f56e5cff0e9bfff0910a3749deaa8d4401c3a2b9de"},
-    {file = "pydantic_settings-2.14.1.tar.gz", hash = "sha256:e874d3bec7e787b0c9958277956ed9b4dd5de6a80e162188fdaff7c5e26fd5fa"},
-]
-
-[package.dependencies]
-pydantic = ">=2.7.0"
-python-dotenv = ">=0.21.0"
-typing-inspection = ">=0.4.0"
-
-[package.extras]
-aws-secrets-manager = ["boto3 (>=1.35.0)", "types-boto3[secretsmanager]"]
-azure-key-vault = ["azure-identity (>=1.16.0)", "azure-keyvault-secrets (>=4.8.0)"]
-gcp-secret-manager = ["google-cloud-secret-manager (>=2.23.1)"]
-toml = ["tomli (>=2.0.1)"]
-yaml = ["pyyaml (>=6.0.1)"]
 
 [[package]]
 name = "pygments"
@@ -2423,6 +2487,19 @@ trio = ">=0.11"
 wsproto = ">=0.14"
 
 [[package]]
+name = "truststore"
+version = "0.10.5"
+description = "Verify certificates using native system trust stores"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "sys_platform != \"emscripten\""
+files = [
+    {file = "truststore-0.10.5-py3-none-any.whl", hash = "sha256:9aaaedaefaf06d8b206278cf8b5012bc897f485a874503501e12d776df78951c"},
+    {file = "truststore-0.10.5.tar.gz", hash = "sha256:30d36967ccaded5cbb38d602c433f53600036c79d502f4533a49b60a03bbefcd"},
+]
+
+[[package]]
 name = "typer"
 version = "0.25.1"
 description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
@@ -2658,4 +2735,4 @@ h11 = ">=0.16.0,<1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "765b437983d9219769e7bff153bd87cae04bd3b8a54d10fb93eda271f204e441"
+content-hash = "8532096a07a61c08ea197b66e0534c4330733899590171b0d443c2f099895630"
