@@ -1,6 +1,6 @@
 name: Release
 
-# On main: test -> bump version + tag + GitHub release -> build -> PyPI -> docs.
+# On main: test -> version + tag + GitHub release -> build -> PyPI -> docs.
 # Put "[skip release]" in a commit message to skip the release.
 # Requires a PyPI trusted publisher: workflow release.yml, environment pypi.
 on:
@@ -28,34 +28,37 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # push release commit + tag, create release
+      contents: write   # push tag, create release
     outputs:
       tag: ${{ steps.bump.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Use a PAT here instead if main is protected against GITHUB_TOKEN pushes
-          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - name: Bump version, update CHANGELOG, tag
+      # main is protected (PR + signed commits only), so no release commit is
+      # pushed: the tag alone marks the release and the notes live in the
+      # GitHub release. CHANGELOG.md is only regenerated in the runner to
+      # extract those notes.
+      - name: Compute version, create tag
         id: bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npx --yes commit-and-tag-version --no-verify \
+          npx --yes commit-and-tag-version --no-verify --skip.commit \
             --commitUrlFormat "https://github.com/${{ github.repository }}/commit/{{hash}}" \
             --compareUrlFormat "https://github.com/${{ github.repository }}/compare/{{previousTag}}...{{currentTag}}"
-          echo "tag=$(git describe --tags --abbrev=0)" >> "$GITHUB_OUTPUT"
-          git push origin HEAD:main --follow-tags
+          TAG=$(git describe --tags --abbrev=0)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          awk '/^## \[/{if(p)exit; p=1; next} p' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          git push origin "refs/tags/$TAG"
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG=${{ steps.bump.outputs.tag }}
-          awk '/^## \[/{if(p)exit; p=1; next} p' CHANGELOG.md > notes.md
-          gh release create "$TAG" --title "$TAG" --notes-file notes.md
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
 
   publish:
     needs: version

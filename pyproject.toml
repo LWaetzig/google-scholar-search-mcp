@@ -41,10 +41,10 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/LWaetzig/google-scholar-mcp"
-Repository = "https://github.com/LWaetzig/google-scholar-mcp.git"
-Issues = "https://github.com/LWaetzig/google-scholar-mcp/issues"
-Documentation = "https://lwaetzig.github.io/google-scholar-mcp"
+Homepage = "https://github.com/LWaetzig/google-scholar-search-mcp"
+Repository = "https://github.com/LWaetzig/google-scholar-search-mcp.git"
+Issues = "https://github.com/LWaetzig/google-scholar-search-mcp/issues"
+Documentation = "https://lwaetzig.github.io/google-scholar-search-mcp"
 
 [project.scripts]
 google-scholar-mcp = "google_scholar_search_mcp.server:main"
