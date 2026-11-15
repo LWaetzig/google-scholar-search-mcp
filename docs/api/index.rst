@@ -11,3 +11,4 @@ Auto-generated reference documentation for all public modules.
    config
    scholar
    rate_limiter
+   cli
