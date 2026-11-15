@@ -28,7 +28,6 @@ scholar = ScholarClient(config)
 limiter = RateLimiter(config.min_delay_seconds, config.max_delay_seconds)
 
 
-
 def _build_instructions(cfg: Config) -> str:
     """Build the server instructions, including a pointer to the agent skill.
 
@@ -76,7 +75,8 @@ async def search_papers(
         SearchResponse: Matching papers.
 
     Raises:
-        ScholarRateLimitError: If Google Scholar blocks the request after retries.
+        ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
+        ScholarRateLimitError: If Google Scholar throttles the request after retries.
     """
     max_results = min(max(max_results, 1), 20)
     papers = await limiter.execute(
@@ -111,8 +111,9 @@ async def search_author(
         AuthorResult: Profile of the best-matching author.
 
     Raises:
-        ScholarRateLimitError: If Google Scholar blocks the request after retries.
-        StopIteration: If nothing matches.
+        ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
+        ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarNotFoundError: If nothing matches.
     """
     max_publications = min(max(max_publications, 1), 20)
     return await limiter.execute(
@@ -134,8 +135,9 @@ async def get_paper_details(title: str) -> PaperDetails:
         PaperDetails: Details of the best-matching paper.
 
     Raises:
-        ScholarRateLimitError: If Google Scholar blocks the request after retries.
-        StopIteration: If nothing matches.
+        ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
+        ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarNotFoundError: If nothing matches.
     """
     return await limiter.execute(
         scholar.get_paper_details,
@@ -159,8 +161,9 @@ async def get_citations(
         CitationResponse: Citing papers and the total citation count.
 
     Raises:
-        ScholarRateLimitError: If Google Scholar blocks the request after retries.
-        StopIteration: If nothing matches.
+        ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
+        ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarNotFoundError: If nothing matches.
     """
     max_results = min(max(max_results, 1), 20)
     cited_title, total, papers = await limiter.execute(
@@ -243,8 +246,9 @@ async def get_bibtex(title: str) -> str:
         str: BibTeX entry.
 
     Raises:
-        ScholarRateLimitError: If Google Scholar blocks the request after retries.
-        StopIteration: If nothing matches.
+        ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
+        ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarNotFoundError: If nothing matches.
     """
     return await limiter.execute(
         scholar.get_bibtex,

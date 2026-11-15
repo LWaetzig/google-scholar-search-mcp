@@ -240,6 +240,18 @@ Contributions are welcome! Please:
 4. Push to your fork
 5. Open a pull request
 
+### Tests
+
+```bash
+poetry run pytest tests/unit                  # fast, offline
+poetry run pytest tests -m "not integration"  # what CI runs
+poetry run pytest tests -m integration        # live Google Scholar, slow
+```
+
+`tests/integration` drives the real server through an in-memory MCP client against live
+Google Scholar and is marked `integration` automatically. If Scholar blocks your IP, those
+tests skip instead of failing. They also run weekly via the *Integration tests* workflow.
+
 ## Support
 
 For issues, questions, or feature requests, please open an issue on GitHub.

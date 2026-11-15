@@ -60,6 +60,7 @@ build-backend = "poetry.core.masonry.api"
 asyncio_mode = "auto"
 markers = ["integration: hits the live Google Scholar service (slow, may be rate limited)"]
 pythonpath = ["src"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 88

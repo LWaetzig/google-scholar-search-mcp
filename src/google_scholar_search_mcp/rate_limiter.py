@@ -9,11 +9,11 @@ from typing import Any
 
 from scholarly import MaxTriesExceededException
 
+from .errors import ScholarBlockedError, ScholarRateLimitError
+
+__all__ = ["RateLimiter", "ScholarBlockedError", "ScholarRateLimitError"]
+
 logger = logging.getLogger(__name__)
-
-
-class ScholarRateLimitError(Exception):
-    """Raised when Google Scholar blocks or throttles requests after retries."""
 
 
 class RateLimiter:
@@ -51,21 +51,22 @@ class RateLimiter:
             Any: Whatever ``func`` returns.
 
         Raises:
-            ScholarRateLimitError: If Scholar keeps blocking or throttling
-                the request after all retries.
+            ScholarBlockedError: If Scholar blocks the client (CAPTCHA, max
+                tries exceeded).
+            ScholarRateLimitError: If Scholar keeps throttling the request
+                after all retries.
             Exception: Any other error raised by ``func`` is re-raised.
         """
         for attempt in range(max_retries + 1):
             await self._wait()
             try:
                 return await asyncio.to_thread(func, *args, **kwargs)
-            
-            except MaxTriesExceededException:
-                
-                raise ScholarRateLimitError(
-                    "Google Scholar is blocking requests. "
-                    "Try again later or configure a proxy via GS_PROXY_TYPE."
-                )
+            except MaxTriesExceededException as e:
+                raise ScholarBlockedError(
+                    "Google Scholar is blocking requests (CAPTCHA or max tries "
+                    "exceeded). Do not retry now; tell the user to wait, raise "
+                    "GS_MIN_DELAY or configure a proxy via GS_PROXY_TYPE."
+                ) from e
             except Exception as e:
                 if "DOSException" in type(e).__name__ or "429" in str(e):
                     if attempt < max_retries:
@@ -81,7 +82,7 @@ class RateLimiter:
                     raise ScholarRateLimitError(
                         "Google Scholar rate limit exceeded after retries. "
                         "Configure a proxy via GS_PROXY_TYPE or try later."
-                    )
+                    ) from e
                 raise
 
         raise ScholarRateLimitError("Max retries exceeded.")
