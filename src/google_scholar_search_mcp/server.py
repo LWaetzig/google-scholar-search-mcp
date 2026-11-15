@@ -30,7 +30,14 @@ limiter = RateLimiter(config.min_delay_seconds, config.max_delay_seconds)
 
 
 def _build_instructions(cfg: Config) -> str:
-    """Return the server instructions, including a pointer to the agent skill."""
+    """Build the server instructions, including a pointer to the agent skill.
+
+    Args:
+        cfg (Config): Configuration; ``skill_url`` is mentioned when set.
+
+    Returns:
+        str: Instruction text sent to MCP clients.
+    """
     text = (
         "Search Google Scholar for academic papers, authors, citations, and BibTeX entries. "
         "Rate limiting is applied automatically. For bulk searches, use the bulk_search tool."
@@ -58,12 +65,18 @@ async def search_papers(
     """Search Google Scholar for academic papers by keyword.
 
     Args:
-        query: Search query (same syntax as Google Scholar search box).
-        max_results: Maximum number of results to return (1-20, default 10).
-        year_from: Filter to papers published in or after this year.
-        year_to: Filter to papers published in or before this year.
-        sort_by: Sort order — "relevance" (default) or "date".
-        include_patents: Include patents in results (default True).
+        query (str): Search query (same syntax as Google Scholar search box).
+        max_results (int): Maximum number of results to return (1-20, default 10).
+        year_from (int | None): Filter to papers published in or after this year.
+        year_to (int | None): Filter to papers published in or before this year.
+        sort_by (str): Sort order — "relevance" (default) or "date".
+        include_patents (bool): Include patents in results (default True).
+
+    Returns:
+        SearchResponse: Matching papers.
+
+    Raises:
+        ScholarRateLimitError: If Google Scholar blocks the request after retries.
     """
     max_results = min(max(max_results, 1), 20)
     papers = await limiter.execute(
@@ -91,8 +104,15 @@ async def search_author(
     """Find a Google Scholar author profile by name.
 
     Args:
-        name: Author name to search for (e.g. "Albert Einstein").
-        max_publications: Number of publications to include (1-20, default 5).
+        name (str): Author name to search for (e.g. "Albert Einstein").
+        max_publications (int): Number of publications to include (1-20, default 5).
+
+    Returns:
+        AuthorResult: Profile of the best-matching author.
+
+    Raises:
+        ScholarRateLimitError: If Google Scholar blocks the request after retries.
+        StopIteration: If nothing matches.
     """
     max_publications = min(max(max_publications, 1), 20)
     return await limiter.execute(
@@ -108,7 +128,14 @@ async def get_paper_details(title: str) -> PaperDetails:
     """Get full details of a specific paper by its title.
 
     Args:
-        title: The exact (or close) title of the paper.
+        title (str): The exact (or close) title of the paper.
+
+    Returns:
+        PaperDetails: Details of the best-matching paper.
+
+    Raises:
+        ScholarRateLimitError: If Google Scholar blocks the request after retries.
+        StopIteration: If nothing matches.
     """
     return await limiter.execute(
         scholar.get_paper_details,
@@ -125,8 +152,15 @@ async def get_citations(
     """Get papers that cite a given paper.
 
     Args:
-        title: Title of the paper whose citations to retrieve.
-        max_results: Maximum citing papers to return (1-20, default 10).
+        title (str): Title of the paper whose citations to retrieve.
+        max_results (int): Maximum citing papers to return (1-20, default 10).
+
+    Returns:
+        CitationResponse: Citing papers and the total citation count.
+
+    Raises:
+        ScholarRateLimitError: If Google Scholar blocks the request after retries.
+        StopIteration: If nothing matches.
     """
     max_results = min(max(max_results, 1), 20)
     cited_title, total, papers = await limiter.execute(
@@ -155,10 +189,13 @@ async def bulk_search(
     delays between them to avoid being blocked.
 
     Args:
-        queries: List of search queries (maximum 10).
-        max_results_per_query: Results per query (1-10, default 5).
-        year_from: Filter to papers published in or after this year.
-        year_to: Filter to papers published in or before this year.
+        queries (list[str]): List of search queries (maximum 10).
+        max_results_per_query (int): Results per query (1-10, default 5).
+        year_from (int | None): Filter to papers published in or after this year.
+        year_to (int | None): Filter to papers published in or before this year.
+
+    Returns:
+        BulkSearchResponse: One result per query plus per-query errors; failed queries do not abort the batch.
     """
     queries = queries[:10]
     max_results_per_query = min(max(max_results_per_query, 1), 10)
@@ -200,7 +237,14 @@ async def get_bibtex(title: str) -> str:
     """Get BibTeX citation entry for a paper.
 
     Args:
-        title: Title of the paper to get BibTeX for.
+        title (str): Title of the paper to get BibTeX for.
+
+    Returns:
+        str: BibTeX entry.
+
+    Raises:
+        ScholarRateLimitError: If Google Scholar blocks the request after retries.
+        StopIteration: If nothing matches.
     """
     return await limiter.execute(
         scholar.get_bibtex,
@@ -210,6 +254,11 @@ async def get_bibtex(title: str) -> str:
 
 
 def main() -> None:
+    """Run the MCP server over stdio.
+
+    Returns:
+        None: Blocks until the client disconnects.
+    """
     mcp.run(transport="stdio")
 
 

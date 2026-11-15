@@ -47,7 +47,10 @@ Issues = "https://github.com/LWaetzig/google-scholar-search-mcp/issues"
 Documentation = "https://lwaetzig.github.io/google-scholar-search-mcp"
 
 [project.scripts]
-google-scholar-mcp = "google_scholar_search_mcp.server:main"
+google-scholar-mcp = "google_scholar_search_mcp.cli:main"
+# Alias matching the PyPI distribution name, so `uvx google-scholar-search-mcp setup`
+# works without --from.
+google-scholar-search-mcp = "google_scholar_search_mcp.cli:main"
 
 [build-system]
 requires      = ["poetry-core"]
