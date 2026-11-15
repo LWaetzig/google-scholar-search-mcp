@@ -94,7 +94,7 @@ export GS_SCRAPERAPI_KEY=your_key_here
 ```
 
 ## Usage
-Detailed documentation about single tools can be found [here](https://personal-public-packages.gitlab.io/google-scholar-mcp)
+Detailed documentation about single tools can be found [here](https://lwaetzig.github.io/google-scholar-mcp)
 
 ### Integration with Claude Desktop
 

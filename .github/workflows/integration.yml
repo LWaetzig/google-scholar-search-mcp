@@ -1,0 +1,21 @@
+name: Integration tests
+
+# Optional: manual or weekly. Hits live Google Scholar; may be rate limited.
+# Tests opt in with @pytest.mark.integration.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Run integration tests (exit 5 = none collected)
+        run: |
+          poetry run pytest tests -m integration || [ $? -eq 5 ]

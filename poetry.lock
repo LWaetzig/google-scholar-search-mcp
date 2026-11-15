@@ -1536,7 +1536,7 @@ description = "C parser in Python"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "(os_name == \"nt\" and implementation_name != \"pypy\" or platform_python_implementation != \"PyPy\") and implementation_name != \"PyPy\""
+markers = "os_name == \"nt\" and implementation_name != \"pypy\" and implementation_name != \"PyPy\" or platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\""
 files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
@@ -2735,4 +2735,4 @@ h11 = ">=0.16.0,<1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "8532096a07a61c08ea197b66e0534c4330733899590171b0d443c2f099895630"
+content-hash = "4284dc4fce25b4ec1fe3bfa1e18abaa1e2ecfbef6938d3649bf41e154bbc51b8"

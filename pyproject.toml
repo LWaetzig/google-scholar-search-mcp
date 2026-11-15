@@ -16,12 +16,14 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Libraries",
 ]
 dependencies = [
     "mcp[cli]>=2.3.0",
     "scholarly>=1.7.11",
+    "bibtexparser>=1.4,<2",
     "pydantic>=2.0",
 ]
 
@@ -42,7 +44,7 @@ docs = [
 Homepage = "https://github.com/LWaetzig/google-scholar-mcp"
 Repository = "https://github.com/LWaetzig/google-scholar-mcp.git"
 Issues = "https://github.com/LWaetzig/google-scholar-mcp/issues"
-Documentation = "https://personal-public-packages.gitlab.io/google-scholar-mcp"
+Documentation = "https://lwaetzig.github.io/google-scholar-mcp"
 
 [project.scripts]
 google-scholar-mcp = "google_scholar_search_mcp.server:main"
@@ -53,6 +55,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = ["integration: hits the live Google Scholar service (slow, may be rate limited)"]
 pythonpath = ["src"]
 
 [tool.ruff]
