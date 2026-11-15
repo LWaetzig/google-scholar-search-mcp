@@ -1,6 +1,9 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from google_scholar_search_mcp.config import Config, ProxyType
+from google_scholar_search_mcp.errors import ScholarNotFoundError
 from google_scholar_search_mcp.models import PaperResult
 from google_scholar_search_mcp.scholar import ScholarClient
 
@@ -122,3 +125,24 @@ def test_author_to_result():
     assert result.cited_by == 5000
     assert len(result.publications) == 1
     assert result.publications[0].title == "Test Paper"
+
+
+@patch("google_scholar_search_mcp.scholar.scholarly")
+@pytest.mark.parametrize("method", ["get_paper_details", "get_citations", "get_bibtex"])
+def test_title_lookups_raise_not_found(mock_scholarly, method):
+    mock_scholarly.search_pubs.return_value = iter([])
+
+    client = ScholarClient(_make_config())
+
+    with pytest.raises(ScholarNotFoundError, match=r"\[NOT_FOUND\].*No Such Paper"):
+        getattr(client, method)("No Such Paper")
+
+
+@patch("google_scholar_search_mcp.scholar.scholarly")
+def test_search_author_raises_not_found(mock_scholarly):
+    mock_scholarly.search_author.return_value = iter([])
+
+    client = ScholarClient(_make_config())
+
+    with pytest.raises(ScholarNotFoundError, match="Nobody"):
+        client.search_author("Nobody")

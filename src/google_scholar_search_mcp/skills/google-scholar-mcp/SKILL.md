@@ -58,9 +58,12 @@ take minutes.
 - Plan queries up front; prefer one well-chosen query over many variations.
 - Use `bulk_search` for batches instead of many parallel calls.
 - Keep `max_results` small (5-10) and do not page for completeness unless asked.
-- Do not retry in a loop. If a call fails with a CAPTCHA, block or "Max tries
-  exceeded" message, stop, tell the user, and suggest increasing `GS_MIN_DELAY`
-  or configuring a proxy (`GS_PROXY_TYPE`) rather than hammering the service.
+- Do not retry in a loop. Errors start with a stable code:
+  - `[BLOCKED]` (CAPTCHA / max tries): stop, tell the user, and suggest
+    increasing `GS_MIN_DELAY` or configuring a proxy (`GS_PROXY_TYPE`).
+  - `[RATE_LIMITED]` (throttled after retries): wait before trying again.
+  - `[NOT_FOUND]` (no match): retrying the same input will not help; use the
+    exact title from a search result or simplify the query.
 - Reuse results already in the conversation.
 
 ## Search strategy

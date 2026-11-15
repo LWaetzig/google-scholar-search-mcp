@@ -74,3 +74,29 @@ async def test_gives_up_after_max_retries():
     rl = RateLimiter(min_delay=0.01, max_delay=0.02)
     with pytest.raises(ScholarRateLimitError):
         await rl.execute(always_blocked, max_retries=2)
+
+
+@pytest.mark.asyncio
+async def test_max_tries_becomes_blocked_error():
+    from scholarly import MaxTriesExceededException
+
+    from google_scholar_search_mcp.errors import ScholarBlockedError
+
+    def blocked():
+        raise MaxTriesExceededException("captcha")
+
+    rl = RateLimiter(min_delay=0.01, max_delay=0.02)
+    with pytest.raises(ScholarBlockedError, match=r"\[BLOCKED\]"):
+        await rl.execute(blocked, max_retries=3)
+
+
+@pytest.mark.asyncio
+async def test_not_found_survives_worker_thread():
+    from google_scholar_search_mcp.errors import ScholarNotFoundError
+
+    def missing():
+        raise ScholarNotFoundError("nothing")
+
+    rl = RateLimiter(min_delay=0.01, max_delay=0.02)
+    with pytest.raises(ScholarNotFoundError):
+        await rl.execute(missing, max_retries=0)

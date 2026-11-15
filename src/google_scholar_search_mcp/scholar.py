@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, TypeVar
 
 from scholarly import ProxyGenerator, scholarly
 
+from .errors import ScholarNotFoundError
 from .models import AuthorResult, PaperDetails, PaperResult
 
 if TYPE_CHECKING:
     from .config import Config
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 def _safe_int(value: object) -> int | None:
@@ -29,6 +33,32 @@ def _safe_int(value: object) -> int | None:
         return int(value)  # type: ignore[call-overload]
     except (ValueError, TypeError):
         return None
+
+
+def _first(results: Iterator[T], what: str) -> T:
+    """Return the first item of a ``scholarly`` result iterator.
+
+    Args:
+        results (Iterator[T]): Lazy search results.
+        what (str): Description of the lookup, used in the error message.
+
+    Returns:
+        T: The first result.
+
+    Raises:
+        ScholarNotFoundError: If the iterator is empty. A bare
+            ``StopIteration`` must not leave a worker thread, as it cannot
+            propagate through an ``asyncio`` future.
+    """
+    try:
+        return next(results)
+    except StopIteration:
+        raise ScholarNotFoundError(
+            f"No Google Scholar result for {what}. Try the exact title from a "
+            "search result, fewer words, or a different spelling. If well-known "
+            "papers also return nothing, Scholar may be silently blocking this "
+            "IP (sign-in redirect): raise GS_MIN_DELAY or set GS_PROXY_TYPE."
+        ) from None
 
 
 class ScholarClient:
@@ -134,11 +164,11 @@ class ScholarClient:
             PaperDetails: Details of the first search hit.
 
         Raises:
-            StopIteration: If the search finds no paper.
+            ScholarNotFoundError: If the search finds no paper.
         """
         self._ensure_initialized()
         results = scholarly.search_pubs(title)
-        pub = next(results)
+        pub = _first(results, f"title {title!r}")
         pub = scholarly.fill(pub)
         return self._pub_to_paper_details(pub)
 
@@ -153,11 +183,11 @@ class ScholarClient:
             AuthorResult: Profile of the first matching author.
 
         Raises:
-            StopIteration: If no author matches.
+            ScholarNotFoundError: If no author matches.
         """
         self._ensure_initialized()
         search = scholarly.search_author(name)
-        author = next(search)
+        author = _first(search, f"author {name!r}")
         author = scholarly.fill(
             author,
             sections=["basics", "indices", "publications"],
@@ -179,11 +209,11 @@ class ScholarClient:
             its total citation count and the citing papers.
 
         Raises:
-            StopIteration: If the search finds no paper.
+            ScholarNotFoundError: If the search finds no paper.
         """
         self._ensure_initialized()
         results = scholarly.search_pubs(title)
-        pub = next(results)
+        pub = _first(results, f"title {title!r}")
         total = pub.get("num_citations", 0)
         citing = scholarly.citedby(pub)
         papers: list[PaperResult] = []
@@ -204,11 +234,11 @@ class ScholarClient:
             str: BibTeX entry.
 
         Raises:
-            StopIteration: If the search finds no paper.
+            ScholarNotFoundError: If the search finds no paper.
         """
         self._ensure_initialized()
         results = scholarly.search_pubs(title)
-        pub = next(results)
+        pub = _first(results, f"title {title!r}")
         pub = scholarly.fill(pub)
         return scholarly.bibtex(pub)
 
