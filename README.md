@@ -28,14 +28,36 @@ An MCP (Model Context Protocol) server for searching Google Scholar, built for A
 
 ### Requirements
 - `Python 3.12` or later
-- Dependencies: `mcp[cli]>=2.3.0`, `scholarly>=1.7.11`, `pydantic>=2.0` (see [pyproject.toml](./pyproject.toml)) 
-  - project uses `poetry` for dependency management
 
-### Install it from PyPI
+### Recommended: uv + one-command setup
 
 ```bash
-pip install google-scholar-search-mcp
+uv tool install google-scholar-search-mcp   # or: pip install google-scholar-search-mcp
+google-scholar-mcp setup
 ```
+
+`setup` registers the server with Claude Desktop (`claude_desktop_config.json`) and Claude Code (`claude mcp add --scope user`), plus Cursor (`~/.cursor/mcp.json`), Windsurf and Gemini CLI when installed, and downloads the agent skill into `~/.claude/skills/google-scholar-mcp/`. Existing entries in your config are preserved. Skip parts with `--no-claude-desktop`, `--no-claude-code` or `--no-skill`. Restart your client afterwards.
+
+Try it without installing: `uvx google-scholar-search-mcp setup`.
+
+| Command | Purpose |
+|---------|---------|
+| `google-scholar-mcp` / `serve` | Run the MCP server over stdio |
+| `google-scholar-mcp setup` | Configure clients and install the skill |
+| `google-scholar-mcp install-skill [--target T]... [--root D] [--force]` | Download the skill into every detected agent in the project (falls back to the bundled copy offline) |
+
+`install-skill` detects which agents the current project uses and writes to each; name targets explicitly with `--target`. It never overwrites a differing file without `--force`, and only edits the marked block in shared files.
+
+| Target | Detected by | Written to |
+|--------|-------------|------------|
+| `claude-user` | always | `~/.claude/skills/google-scholar-mcp/SKILL.md` |
+| `claude` | `.claude/` | `.claude/skills/google-scholar-mcp/SKILL.md` |
+| `cursor` | `.cursor/` | `.cursor/rules/google-scholar-mcp.mdc` |
+| `windsurf` | `.windsurf/` | `.windsurf/rules/google-scholar-mcp.md` |
+| `agents` (Codex, Amp, OpenCode, Jules, …) | `AGENTS.md` | pointer block in `AGENTS.md` + `.agents/skills/google-scholar-mcp/SKILL.md` |
+| `gemini` | `GEMINI.md` or `.gemini/` | pointer block in `GEMINI.md` + `.agents/skills/google-scholar-mcp/SKILL.md` |
+
+Codex stores MCP servers in TOML (`~/.codex/config.toml`), which `setup` does not edit; its skill is covered by the `agents` target.
 
 ### Build from Source
 
@@ -66,7 +88,7 @@ Configure the MCP server via environment variables:
 
 ### Agent skill
 
-The repository ships [`skills/google-scholar-mcp/SKILL.md`](skills/google-scholar-mcp/SKILL.md), which tells an agent when and how to use the tools (tool choice, rate limits, error handling). The server advertises its URL in the MCP server instructions. Copy the file into your client's skills directory (e.g. `~/.claude/skills/google-scholar-mcp/`) to install it permanently.
+The package ships [`SKILL.md`](src/google_scholar_search_mcp/skills/google-scholar-mcp/SKILL.md), which tells an agent when and how to use the tools (tool choice, rate limits, error handling). `google-scholar-mcp setup` (or `install-skill`) downloads it from `GS_SKILL_URL` into `~/.claude/skills/google-scholar-mcp/`, falling back to the bundled copy if the download fails. The server also advertises the URL in the MCP server instructions.
 
 ### Proxy Configuration Examples
 

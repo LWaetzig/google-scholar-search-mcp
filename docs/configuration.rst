@@ -106,12 +106,13 @@ Proxy Modes
 Agent Skill
 -----------
 
-The repository ships ``skills/google-scholar-mcp/SKILL.md``, which explains to an
+The repository ships ``src/google_scholar_search_mcp/skills/google-scholar-mcp/SKILL.md``, which explains to an
 agent when and how to use the tools (tool choice, rate limits, error handling).
 The server appends the skill's URL (``GS_SKILL_URL``) to its MCP instructions,
-which clients show to the agent on connect. Copy the file into your client's
-skills directory (for example ``~/.claude/skills/google-scholar-mcp/``) to
-install it permanently.
+which clients show to the agent on connect. Run ``google-scholar-mcp setup`` (or
+``google-scholar-mcp install-skill``) to download it into
+``~/.claude/skills/google-scholar-mcp/``; if the download fails the bundled
+copy is used.
 
 ----
 
