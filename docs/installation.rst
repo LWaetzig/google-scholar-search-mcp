@@ -26,8 +26,8 @@ Build from Source
 
 .. code-block:: bash
 
-   git clone https://github.com/LWaetzig/google-scholar-mcp.git
-   cd google-scholar-mcp
+   git clone https://github.com/LWaetzig/google-scholar-search-mcp.git
+   cd google-scholar-search-mcp
    pip install -e .
 
 ----

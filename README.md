@@ -40,8 +40,8 @@ pip install google-scholar-search-mcp
 ### Build from Source
 
 ```bash
-git clone https://github.com/LWaetzig/google-scholar-mcp.git
-cd google-scholar-mcp
+git clone https://github.com/LWaetzig/google-scholar-search-mcp.git
+cd google-scholar-search-mcp
 pip install -e .
 ```
 
@@ -94,7 +94,7 @@ export GS_SCRAPERAPI_KEY=your_key_here
 ```
 
 ## Usage
-Detailed documentation about single tools can be found [here](https://lwaetzig.github.io/google-scholar-mcp)
+Detailed documentation about single tools can be found [here](https://lwaetzig.github.io/google-scholar-search-mcp)
 
 ### Integration with Claude Desktop
 
