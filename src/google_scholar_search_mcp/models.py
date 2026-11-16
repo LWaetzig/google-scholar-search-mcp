@@ -15,7 +15,6 @@ class PaperResult(BaseModel):
     pub_url: str | None = None
     venue: str | None = None
     scholar_id: str | None = None
-    author_pub_id: str | None = None
 
 
 class PaperDetails(PaperResult):
@@ -24,21 +23,6 @@ class PaperDetails(PaperResult):
     cites_per_year: dict[int, int] = Field(default_factory=dict)
     public_access: bool | None = None
     bibtex: str | None = None
-
-
-class AuthorResult(BaseModel):
-    """A Google Scholar author profile with a few publications."""
-
-    name: str
-    scholar_id: str | None = None
-    affiliation: str | None = None
-    email_domain: str | None = None
-    interests: list[str] = Field(default_factory=list)
-    cited_by: int = 0
-    h_index: int = 0
-    i10_index: int = 0
-    publications: list[PaperResult] = Field(default_factory=list)
-    homepage_url: str | None = None
 
 
 class SearchResponse(BaseModel):
@@ -62,6 +46,6 @@ class BulkSearchResponse(BaseModel):
 class CitationResponse(BaseModel):
     """Papers that cite a given paper."""
 
-    cited_paper_title: str
-    total_citations: int
+    cited_paper_title: str | None = None
+    total_citations: int | None = None
     citations: list[PaperResult]

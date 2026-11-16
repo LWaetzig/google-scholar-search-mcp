@@ -1,6 +1,6 @@
 # google-scholar-search-mcp
 
-An MCP (Model Context Protocol) server for searching Google Scholar, built for AI assistants and automation workflows that need papers, authors, citations, and BibTeX entries.
+An MCP (Model Context Protocol) server for searching Google Scholar, built for AI assistants and automation workflows that need papers, citations, and BibTeX entries.
 
 ## Table of Contents
 1. [Features](#features)
@@ -16,12 +16,13 @@ An MCP (Model Context Protocol) server for searching Google Scholar, built for A
 ## Features
 
 - **Paper Search**: Query Google Scholar by keyword with filtering, sorting, and pagination
-- **Author Lookup**: Find researcher profiles with publication lists and h-index metrics
 - **Citation Tracking**: Retrieve papers that cite a given work
+- **ID Lookups**: Fetch details, citations and BibTeX by `scholar_id` instead of a fragile title search
 - **Paper Details**: Get full metadata, citations-per-year graphs, and public access info
 - **BibTeX Export**: Generate citation entries in BibTeX format
 - **Bulk Search**: Batch search multiple queries with automatic rate limiting
-- **Rate Limiting**: Built-in delays between requests to avoid being blocked
+- **Caching**: Repeated lookups are answered from memory (no delay, no request to Scholar)
+- **Rate Limiting**: Every HTTP request to Scholar is spaced by a random delay (also the several requests inside one tool call), to avoid being blocked
 - **Proxy Support**: Optional proxy configuration (free, single, or ScraperAPI)
 
 ## Installation
@@ -43,6 +44,8 @@ Try it without installing: `uvx google-scholar-search-mcp setup`.
 | Command | Purpose |
 |---------|---------|
 | `google-scholar-mcp` / `serve` | Run the MCP server over stdio |
+| `google-scholar-mcp doctor` | Check whether Google Scholar answers this client (one request; exit code 1 if blocked) |
+| `google-scholar-mcp set-cookies` | Save Scholar cookies and User-Agent copied from the browser's developer tools (clipboard or `--stdin`), then run `doctor` |
 | `google-scholar-mcp setup` | Configure clients and install the skill |
 | `google-scholar-mcp install-skill [--target T]... [--root D] [--force]` | Download the skill into every detected agent in the project (falls back to the bundled copy offline) |
 
@@ -76,7 +79,7 @@ Configure the MCP server via environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GS_MIN_DELAY` | `5.0` | Minimum seconds between requests |
+| `GS_MIN_DELAY` | `5.0` | Minimum seconds between two HTTP requests to Scholar. A tool call that needs several requests (e.g. a title lookup: search, then fetch) takes that many delays |
 | `GS_MAX_DELAY` | `15.0` | Maximum seconds between requests |
 | `GS_MAX_RETRIES` | `3` | Number of retries on failure |
 | `GS_PROXY_TYPE` | `none` | Proxy mode: `none`, `free`, `single`, `scraperapi` |
@@ -84,6 +87,12 @@ Configure the MCP server via environment variables:
 | `GS_PROXY_HTTPS` | — | HTTPS proxy URL (for `single` mode) |
 | `GS_SCRAPERAPI_KEY` | — | ScraperAPI key (for `scraperapi` mode) |
 | `GS_TIMEOUT` | `30` | Request timeout in seconds |
+| `GS_COOKIES_FILE` | — | File containing your browser's `Cookie` header for Scholar (see [Using browser cookies](#using-browser-cookies-experimental)); preferred over `GS_COOKIES` |
+| `GS_COOKIES` | — | Same, as a value (ends up in client config files; prefer the file) |
+| `GS_USER_AGENT` | — | User-Agent of the browser the cookies came from; must match |
+| `GS_BLOCK_COOLDOWN` | `900` | Seconds to stop querying Scholar after it blocked the client (bot check / sign-in redirect); calls fail fast with `[BLOCKED]` meanwhile. `0` disables |
+| `GS_CACHE_TTL` | `3600` | Seconds a successful result is reused from memory (`0` disables the cache) |
+| `GS_CACHE_SIZE` | `256` | Most cached results kept; the least recently used is dropped first |
 | `GS_SKILL_URL` | GitHub raw URL of `SKILL.md` | URL advertised to agents in the server instructions; set to an empty string to omit |
 
 ### Agent skill
@@ -220,8 +229,48 @@ You've hit Google Scholar's rate limit. Solutions:
 ### "No results found"
 
 - Check your query syntax (Google Scholar supports advanced search operators)
-- Ensure the author/paper name is spelled correctly
+- Ensure the paper title is spelled correctly
 - Try a simpler query with fewer keywords
+
+### `[BLOCKED]` / "JavaScript bot verification"
+
+Google Scholar sometimes answers automated clients with a JavaScript "Verifying..." page or a
+sign-in redirect instead of results. The server detects this and pauses Scholar requests for
+`GS_BLOCK_COOLDOWN` seconds and returns `[BLOCKED]` instead. Delays and ordinary
+proxies do not get past the bot check; a JavaScript-capable proxy (`GS_PROXY_TYPE=scraperapi`) may.
+
+### Using browser cookies (experimental)
+
+Scholar's bot check needs JavaScript, which `scholarly` does not run. A real browser passes it once
+and keeps the resulting cookies; handing those cookies (and the same User-Agent) to the server lets
+`scholarly` reuse that verified session.
+
+1. Open a **private/incognito window** and **do not log in to Google**.
+2. Go to <https://scholar.google.com>, run any search, solve the CAPTCHA if one appears, and wait
+   until results show.
+3. Open the developer tools, **Network** tab, reload, right-click the request named `scholar?...`
+   and choose **Copy > Copy as cURL** (or *Copy request headers*).
+4. Run:
+
+   ```bash
+   google-scholar-mcp set-cookies
+   ```
+
+   It reads the clipboard, saves the cookies and the User-Agent to
+   `~/.config/google-scholar-mcp/cookies` (readable only by you) and runs `doctor`. The server reads
+   that file automatically, so no environment variables are needed: just restart it. Without a
+   clipboard tool, use `google-scholar-mcp set-cookies --stdin < copied.txt`.
+
+To manage the file yourself instead, put the `cookie` header value in a file (`chmod 600`) and set
+`GS_COOKIES_FILE` and `GS_USER_AGENT`.
+
+Notes: use the **same machine and network** as the server (cookies are usually tied to IP address and
+User-Agent); they **expire**, so repeat the steps when `doctor` reports `BLOCKED` again; never use
+cookies from a logged-in Google session (the server warns about login cookies such as `SAPISID`).
+Cookie values are never logged or printed; `doctor` shows only their names.
+
+Author profile pages (`/citations`) now require a signed-in Google session. This server deliberately
+does not use login cookies, so it has no author tool.
 
 ### "Connection timeout"
 

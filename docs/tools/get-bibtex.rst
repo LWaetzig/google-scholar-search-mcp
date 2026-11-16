@@ -21,8 +21,19 @@ Parameters
      - Description
    * - ``title``
      - ``str``
-     - *(required)*
+     - ``None``
      - Title of the paper to get BibTeX for.
+   * - ``scholar_id``
+     - ``str``
+     - ``None``
+     - ``scholar_id`` of a paper from an earlier search result.
+
+.. note::
+
+   Provide at least one of ``scholar_id`` or ``title`` (``scholar_id`` wins), otherwise the call fails with
+   ``[INVALID_ARGUMENT]``. IDs avoid the title search, which takes the first
+   hit and can return a different paper. With ``scholar_id`` the first entry
+   of the paper's version cluster is used.
 
 Return Value
 ------------

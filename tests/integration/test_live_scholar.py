@@ -63,16 +63,6 @@ async def test_get_citations(call: CallTool) -> None:
     assert len(data["citations"]) == 2
 
 
-async def test_search_author(call: CallTool) -> None:
-    result = await call("search_author", name="Geoffrey Hinton", max_publications=2)
-
-    assert not result.is_error, error_text(result)
-    data = result.structured_content
-    assert data is not None
-    assert "hinton" in data["name"].lower()
-    assert data["h_index"] > 50
-
-
 async def test_unknown_title_returns_not_found(call: CallTool) -> None:
     await _skip_unless_scholar_answers(call)
 
@@ -84,3 +74,32 @@ async def test_unknown_title_returns_not_found(call: CallTool) -> None:
 
     assert result.is_error
     assert "[NOT_FOUND]" in error_text(result)
+
+
+async def test_scholar_id_chains_from_search_into_citations(call: CallTool) -> None:
+    await _skip_unless_scholar_answers(call)
+    search = await call("search_papers", query=KNOWN_TITLE, max_results=1)
+    paper = search.structured_content["papers"][0]
+    assert paper["scholar_id"], "a highly cited search result must carry a scholar_id"
+
+    citations = await call(
+        "get_citations", scholar_id=paper["scholar_id"], max_results=2
+    )
+
+    assert not citations.is_error, error_text(citations)
+    data = citations.structured_content
+    assert len(data["citations"]) == 2
+    assert data["total_citations"] is None or data["total_citations"] > 1000
+
+
+async def test_scholar_id_chains_from_search_into_details(call: CallTool) -> None:
+    await _skip_unless_scholar_answers(call)
+    search = await call("search_papers", query=KNOWN_TITLE, max_results=1)
+    paper = search.structured_content["papers"][0]
+    assert paper["scholar_id"]
+
+    details = await call("get_paper_details", scholar_id=paper["scholar_id"])
+
+    assert not details.is_error, error_text(details)
+    assert "attention" in details.structured_content["title"].lower()
+    assert details.structured_content["bibtex"]

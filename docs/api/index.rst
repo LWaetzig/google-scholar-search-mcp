@@ -11,5 +11,9 @@ Auto-generated reference documentation for all public modules.
    config
    scholar
    rate_limiter
+   throttle
+   cache
    errors
+   block_detector
+   session_identity
    cli

@@ -16,6 +16,7 @@ class ScholarError(ToolError):
 
     Attributes:
         code (str): Stable machine-readable error code.
+        detail (str): The message without the ``[CODE]`` prefix.
     """
 
     code = "ERROR"
@@ -26,6 +27,7 @@ class ScholarError(ToolError):
         Args:
             message (str): Human-readable explanation, including what to do next.
         """
+        self.detail = message
         super().__init__(f"[{self.code}] {message}")
 
 
@@ -45,3 +47,9 @@ class ScholarBlockedError(ScholarRateLimitError):
     """Google Scholar blocks the client (CAPTCHA / max tries). Stop and tell the user."""
 
     code = "BLOCKED"
+
+
+class ScholarInvalidArgumentError(ScholarError):
+    """The tool arguments are unusable (e.g. no identifier given). Fix the call."""
+
+    code = "INVALID_ARGUMENT"

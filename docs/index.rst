@@ -2,7 +2,7 @@ google-scholar-search-mcp
 =========================
 
 An MCP (Model Context Protocol) server that gives AI assistants direct access to `Google Scholar <https://scholar.google.com>`_.
-Search papers, retrieve author profiles, explore citation networks, and export BibTeX — all from any MCP-compatible client.
+Search papers, explore citation networks, and export BibTeX — all from any MCP-compatible client.
 
 .. code-block:: json
 
@@ -26,8 +26,6 @@ Search papers, retrieve author profiles, explore citation networks, and export B
      - What it does
    * - :ref:`search_papers`
      - Keyword search with year filters and sort options
-   * - :ref:`search_author`
-     - Find a Google Scholar author profile by name
    * - :ref:`get_paper_details`
      - Full metadata for a specific paper by title
    * - :ref:`get_citations`

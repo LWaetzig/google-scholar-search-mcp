@@ -21,20 +21,31 @@ Parameters
      - Description
    * - ``title``
      - ``str``
-     - *(required)*
+     - ``None``
      - Title of the paper whose citations to retrieve.
    * - ``max_results``
      - ``int``
      - ``10``
      - Maximum number of citing papers to return. Clamped to 1–20.
+   * - ``scholar_id``
+     - ``str``
+     - ``None``
+     - ``scholar_id`` of a paper from an earlier search result.
+
+.. note::
+
+   Provide at least one of ``scholar_id`` or ``title`` (``scholar_id`` wins), otherwise the call fails with
+   ``[INVALID_ARGUMENT]``. IDs avoid the title search, which takes the first
+   hit and can return a different paper. With ``scholar_id`` the first entry
+   of the paper's version cluster is used.
 
 Return Value
 ------------
 
 Returns a :class:`~google_scholar_search_mcp.models.CitationResponse` containing:
 
-- ``cited_paper_title`` — resolved title of the source paper
-- ``total_citations`` — total citation count as reported by Google Scholar
+- ``cited_paper_title`` — resolved title of the source paper; ``null`` when only ``scholar_id`` was given (saves a request)
+- ``total_citations`` — total citation count as reported by Google Scholar; ``null`` if Scholar did not report one
 - ``citations`` — list of :class:`~google_scholar_search_mcp.models.PaperResult` objects (the citing papers)
 
 Examples
