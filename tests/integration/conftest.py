@@ -9,16 +9,18 @@ Keep them few and cheap: Scholar blocks automated traffic.
 from __future__ import annotations
 
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Any
 
 import pytest
 from mcp.client import Client
 from mcp_types import CallToolResult
 
+from ..ratelimit_guard import RateLimitGuard
+
 # Must be set before the server module is imported: it reads Config at import.
-os.environ.setdefault("GS_MIN_DELAY", "3")
-os.environ.setdefault("GS_MAX_DELAY", "6")
+# Deliberately NOT overriding GS_MIN_DELAY / GS_MAX_DELAY: the live tests use the
+# same rate limiting as production (5-15 s), or whatever the caller configured.
 os.environ.setdefault("GS_MAX_RETRIES", "1")
 os.environ.setdefault("GS_SKILL_URL", "")
 
@@ -27,6 +29,34 @@ from google_scholar_search_mcp import server  # noqa: E402
 KNOWN_TITLE = "Attention is all you need"
 
 CallTool = Callable[..., Awaitable[CallToolResult]]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def rate_limit_guard() -> Iterator[RateLimitGuard]:
+    """Watch all Scholar traffic of the session.
+
+    Yields:
+        RateLimitGuard: Installed guard; patches are undone afterwards.
+    """
+    guard = RateLimitGuard(min_delay=server.config.min_delay_seconds)
+    with pytest.MonkeyPatch.context() as mp:
+        guard.install(mp)
+        yield guard
+
+
+@pytest.fixture(autouse=True)
+def enforce_rate_limit(rate_limit_guard: RateLimitGuard) -> Iterator[None]:
+    """Fail a test that sent Scholar traffic around or too fast for the limiter.
+
+    Args:
+        rate_limit_guard (RateLimitGuard): Session guard.
+
+    Yields:
+        None: Runs the test, then checks the guard.
+    """
+    yield
+    problems = rate_limit_guard.problems()
+    assert not problems, "rate limiting not respected:\n" + "\n".join(problems)
 
 
 def error_text(result: CallToolResult) -> str:

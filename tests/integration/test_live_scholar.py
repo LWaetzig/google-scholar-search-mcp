@@ -84,3 +84,57 @@ async def test_unknown_title_returns_not_found(call: CallTool) -> None:
 
     assert result.is_error
     assert "[NOT_FOUND]" in error_text(result)
+
+
+async def test_author_ids_chain_into_paper_tools(call: CallTool) -> None:
+    """author -> scholar_id -> author again -> author_pub_id -> details/bibtex/citations."""
+    await _skip_unless_scholar_answers(call)
+    first = await call("search_author", name="Geoffrey Hinton", max_publications=1)
+    assert not first.is_error, error_text(first)
+    author = first.structured_content
+    assert author and author["scholar_id"]
+
+    by_id = await call(
+        "search_author", scholar_id=author["scholar_id"], max_publications=1
+    )
+    assert not by_id.is_error, error_text(by_id)
+    assert by_id.structured_content["scholar_id"] == author["scholar_id"]
+
+    pub = by_id.structured_content["publications"][0]
+    assert pub["author_pub_id"]
+
+    details = await call("get_paper_details", author_pub_id=pub["author_pub_id"])
+    assert not details.is_error, error_text(details)
+    assert details.structured_content["title"]
+
+    bibtex = await call("get_bibtex", author_pub_id=pub["author_pub_id"])
+    assert not bibtex.is_error, error_text(bibtex)
+    assert "@" in error_text(bibtex)
+
+
+async def test_scholar_id_chains_from_search_into_citations(call: CallTool) -> None:
+    await _skip_unless_scholar_answers(call)
+    search = await call("search_papers", query=KNOWN_TITLE, max_results=1)
+    paper = search.structured_content["papers"][0]
+    if not paper["scholar_id"]:
+        pytest.skip("search result carries no scholar_id")
+
+    citations = await call(
+        "get_citations", scholar_id=paper["scholar_id"], max_results=2
+    )
+
+    assert not citations.is_error, error_text(citations)
+    data = citations.structured_content
+    assert len(data["citations"]) == 2
+    assert data["total_citations"] is None or data["total_citations"] > 1000
+
+
+async def test_unknown_author_id_returns_not_found(call: CallTool) -> None:
+    await _skip_unless_scholar_answers(call)
+
+    result = await call(
+        "search_author", scholar_id="zzzzzzzzzzzz", expect_not_found=True
+    )
+
+    assert result.is_error
+    assert "[NOT_FOUND]" in error_text(result)

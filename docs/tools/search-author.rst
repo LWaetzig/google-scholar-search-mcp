@@ -21,12 +21,24 @@ Parameters
      - Description
    * - ``name``
      - ``str``
-     - *(required)*
+     - ``None``
      - Author name to search for (e.g. ``"Albert Einstein"``).
    * - ``max_publications``
      - ``int``
      - ``5``
      - Number of publications to include in the profile. Clamped to 1–20.
+   * - ``scholar_id``
+     - ``str``
+     - ``None``
+     - Author's Scholar profile ID (from an earlier result). Takes precedence
+       over ``name`` and avoids the ambiguous name search.
+
+.. note::
+
+   Provide ``scholar_id`` or ``name``, otherwise the call fails with
+   ``[INVALID_ARGUMENT]``. Each publication in the result carries an
+   ``author_pub_id`` that can be passed to :ref:`get_paper_details`,
+   :ref:`get_citations` and :ref:`get_bibtex`.
 
 Return Value
 ------------

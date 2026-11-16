@@ -41,9 +41,15 @@ matter → `get_bibtex` only for papers the user will cite.
   Set `include_patents=false` for academic literature.
 - `search_author(name, max_publications=5 [1-20])`: use the full name; names are
   ambiguous, so check affiliation and interests before trusting a match.
-- `get_paper_details(title)` / `get_citations(title, max_results=10 [1-20])` /
-  `get_bibtex(title)` take the title, not an ID. Use the exact title from a
-  previous search result.
+- `get_paper_details` / `get_citations(max_results=10 [1-20])` / `get_bibtex`
+  accept `author_pub_id`, `scholar_id` or `title` (precedence in that order).
+  **Prefer IDs** copied from an earlier result: a title search takes the first
+  hit, which can be a different paper, and costs an extra request. `author_pub_id`
+  comes from `search_author` publications; `scholar_id` from any paper result.
+  With only `scholar_id`, `get_citations` omits the cited title (one request fewer).
+  Fall back to the exact title from a search result when no ID is at hand.
+- `search_author(name | scholar_id)`: pass `scholar_id` once known instead of
+  repeating the ambiguous name search.
 - `bulk_search(queries, max_results_per_query=5 [1-10], year_from, year_to)`
   runs queries one after another and reports per-query errors without aborting.
 
@@ -62,6 +68,7 @@ take minutes.
   - `[BLOCKED]` (CAPTCHA / max tries): stop, tell the user, and suggest
     increasing `GS_MIN_DELAY` or configuring a proxy (`GS_PROXY_TYPE`).
   - `[RATE_LIMITED]` (throttled after retries): wait before trying again.
+  - `[INVALID_ARGUMENT]`: no identifier given; supply an ID or title.
   - `[NOT_FOUND]` (no match): retrying the same input will not help; use the
     exact title from a search result or simplify the query.
 - Reuse results already in the conversation.

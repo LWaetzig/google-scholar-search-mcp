@@ -21,8 +21,25 @@ Parameters
      - Description
    * - ``title``
      - ``str``
-     - *(required)*
+     - ``None``
      - Title of the paper to get BibTeX for.
+   * - ``scholar_id``
+     - ``str``
+     - ``None``
+     - ``scholar_id`` of a paper from an earlier search result.
+   * - ``author_pub_id``
+     - ``str``
+     - ``None``
+     - ``author_pub_id`` of a paper from a :ref:`search_author` result.
+       Most exact; wins over ``scholar_id`` and ``title``.
+
+.. note::
+
+   Provide at least one of ``author_pub_id``, ``scholar_id`` or ``title``
+   (precedence in that order), otherwise the call fails with
+   ``[INVALID_ARGUMENT]``. IDs avoid the title search, which takes the first
+   hit and can return a different paper. With ``scholar_id`` the first entry
+   of the paper's version cluster is used.
 
 Return Value
 ------------

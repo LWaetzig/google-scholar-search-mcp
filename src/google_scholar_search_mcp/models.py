@@ -62,6 +62,6 @@ class BulkSearchResponse(BaseModel):
 class CitationResponse(BaseModel):
     """Papers that cite a given paper."""
 
-    cited_paper_title: str
-    total_citations: int
+    cited_paper_title: str | None = None
+    total_citations: int | None = None
     citations: list[PaperResult]

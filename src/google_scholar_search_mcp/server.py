@@ -14,7 +14,7 @@ from .models import (
     SearchResponse,
 )
 from .rate_limiter import RateLimiter
-from .scholar import ScholarClient
+from .scholar import ScholarClient, require_author_identifier, require_identifier
 
 logging.basicConfig(
     level=logging.INFO,
@@ -98,14 +98,19 @@ async def search_papers(
 
 @mcp.tool()
 async def search_author(
-    name: str,
+    name: str | None = None,
     max_publications: int = 5,
+    scholar_id: str | None = None,
 ) -> AuthorResult:
-    """Find a Google Scholar author profile by name.
+    """Find a Google Scholar author profile by ``scholar_id`` or by name.
+
+    Prefer ``scholar_id`` (from an earlier author result): names are ambiguous
+    and a name search returns only the first match.
 
     Args:
-        name (str): Author name to search for (e.g. "Albert Einstein").
+        name (str | None): Author name to search for (e.g. "Albert Einstein").
         max_publications (int): Number of publications to include (1-20, default 5).
+        scholar_id (str | None): Author's Scholar profile id; takes precedence over ``name``.
 
     Returns:
         AuthorResult: Profile of the best-matching author.
@@ -113,23 +118,36 @@ async def search_author(
     Raises:
         ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
         ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarInvalidArgumentError: If no identifier is given.
         ScholarNotFoundError: If nothing matches.
     """
+    require_author_identifier(name, scholar_id)
     max_publications = min(max(max_publications, 1), 20)
     return await limiter.execute(
         scholar.search_author,
         name,
         max_pubs=max_publications,
+        scholar_id=scholar_id,
         max_retries=config.max_retries,
     )
 
 
 @mcp.tool()
-async def get_paper_details(title: str) -> PaperDetails:
-    """Get full details of a specific paper by its title.
+async def get_paper_details(
+    title: str | None = None,
+    scholar_id: str | None = None,
+    author_pub_id: str | None = None,
+) -> PaperDetails:
+    """Get full details of a specific paper.
+
+    Identify the paper with an ID from an earlier result when you have one
+    (``author_pub_id`` > ``scholar_id`` > ``title``); a title search takes the
+    first hit, which can be a different paper.
 
     Args:
-        title (str): The exact (or close) title of the paper.
+        title (str | None): The exact (or close) title of the paper.
+        scholar_id (str | None): ``scholar_id`` of a paper from an earlier search result.
+        author_pub_id (str | None): ``author_pub_id`` of a paper from a ``search_author`` result.
 
     Returns:
         PaperDetails: Details of the best-matching paper.
@@ -137,39 +155,55 @@ async def get_paper_details(title: str) -> PaperDetails:
     Raises:
         ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
         ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarInvalidArgumentError: If no identifier is given.
         ScholarNotFoundError: If nothing matches.
     """
+    require_identifier(title, scholar_id, author_pub_id)
     return await limiter.execute(
         scholar.get_paper_details,
         title,
+        scholar_id=scholar_id,
+        author_pub_id=author_pub_id,
         max_retries=config.max_retries,
     )
 
 
 @mcp.tool()
 async def get_citations(
-    title: str,
+    title: str | None = None,
     max_results: int = 10,
+    scholar_id: str | None = None,
+    author_pub_id: str | None = None,
 ) -> CitationResponse:
     """Get papers that cite a given paper.
 
+    Identify the paper with an ID from an earlier result when you have one
+    (``author_pub_id`` > ``scholar_id`` > ``title``). With only ``scholar_id``
+    the cited paper's title is not fetched (one request fewer) and is omitted.
+
     Args:
-        title (str): Title of the paper whose citations to retrieve.
+        title (str | None): Title of the paper whose citations to retrieve.
         max_results (int): Maximum citing papers to return (1-20, default 10).
+        scholar_id (str | None): ``scholar_id`` of a paper from an earlier search result.
+        author_pub_id (str | None): ``author_pub_id`` of a paper from a ``search_author`` result.
 
     Returns:
-        CitationResponse: Citing papers and the total citation count.
+        CitationResponse: Citing papers, plus the cited paper's title and the total citation count when known.
 
     Raises:
         ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
         ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarInvalidArgumentError: If no identifier is given.
         ScholarNotFoundError: If nothing matches.
     """
+    require_identifier(title, scholar_id, author_pub_id)
     max_results = min(max(max_results, 1), 20)
     cited_title, total, papers = await limiter.execute(
         scholar.get_citations,
         title,
         max_results=max_results,
+        scholar_id=scholar_id,
+        author_pub_id=author_pub_id,
         max_retries=config.max_retries,
     )
     return CitationResponse(
@@ -236,11 +270,20 @@ async def bulk_search(
 
 
 @mcp.tool()
-async def get_bibtex(title: str) -> str:
+async def get_bibtex(
+    title: str | None = None,
+    scholar_id: str | None = None,
+    author_pub_id: str | None = None,
+) -> str:
     """Get BibTeX citation entry for a paper.
 
+    Identify the paper with an ID from an earlier result when you have one
+    (``author_pub_id`` > ``scholar_id`` > ``title``).
+
     Args:
-        title (str): Title of the paper to get BibTeX for.
+        title (str | None): Title of the paper to get BibTeX for.
+        scholar_id (str | None): ``scholar_id`` of a paper from an earlier search result.
+        author_pub_id (str | None): ``author_pub_id`` of a paper from a ``search_author`` result.
 
     Returns:
         str: BibTeX entry.
@@ -248,11 +291,15 @@ async def get_bibtex(title: str) -> str:
     Raises:
         ScholarBlockedError: If Google Scholar blocks the client (CAPTCHA).
         ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarInvalidArgumentError: If no identifier is given.
         ScholarNotFoundError: If nothing matches.
     """
+    require_identifier(title, scholar_id, author_pub_id)
     return await limiter.execute(
         scholar.get_bibtex,
         title,
+        scholar_id=scholar_id,
+        author_pub_id=author_pub_id,
         max_retries=config.max_retries,
     )
 

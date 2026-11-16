@@ -5,8 +5,9 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, TypeVar
 
 from scholarly import ProxyGenerator, scholarly
+from scholarly.data_types import PublicationSource
 
-from .errors import ScholarNotFoundError
+from .errors import ScholarInvalidArgumentError, ScholarNotFoundError
 from .models import AuthorResult, PaperDetails, PaperResult
 
 if TYPE_CHECKING:
@@ -59,6 +60,43 @@ def _first(results: Iterator[T], what: str) -> T:
             "papers also return nothing, Scholar may be silently blocking this "
             "IP (sign-in redirect): raise GS_MIN_DELAY or set GS_PROXY_TYPE."
         ) from None
+
+
+def require_identifier(
+    title: str | None, scholar_id: str | None, author_pub_id: str | None
+) -> None:
+    """Ensure at least one way to identify a paper was given.
+
+    Args:
+        title (str | None): Paper title.
+        scholar_id (str | None): Scholar cluster id (``PaperResult.scholar_id``).
+        author_pub_id (str | None): Author-profile publication id
+            (``PaperResult.author_pub_id``).
+
+    Raises:
+        ScholarInvalidArgumentError: If all three are empty.
+    """
+    if not any(v and v.strip() for v in (title, scholar_id, author_pub_id)):
+        raise ScholarInvalidArgumentError(
+            "Provide one of: author_pub_id, scholar_id or title. IDs come from "
+            "earlier search results and are more reliable than titles."
+        )
+
+
+def require_author_identifier(name: str | None, scholar_id: str | None) -> None:
+    """Ensure an author can be identified.
+
+    Args:
+        name (str | None): Author name.
+        scholar_id (str | None): Scholar profile id.
+
+    Raises:
+        ScholarInvalidArgumentError: If both are empty.
+    """
+    if not any(v and v.strip() for v in (name, scholar_id)):
+        raise ScholarInvalidArgumentError(
+            "Provide scholar_id (from an earlier author result) or name."
+        )
 
 
 class ScholarClient:
@@ -154,38 +192,126 @@ class ScholarClient:
             papers.append(self._pub_to_paper_result(pub))
         return papers
 
-    def get_paper_details(self, title: str) -> PaperDetails:
-        """Fetch full details and BibTeX of the best match for a title.
+    def _locate_pub(
+        self,
+        title: str | None,
+        scholar_id: str | None,
+        author_pub_id: str | None,
+        *,
+        fill: bool,
+    ) -> dict:
+        """Resolve a paper from an ID or title, preferring the most exact ID.
+
+        Precedence: ``author_pub_id`` > ``scholar_id`` > ``title``.
 
         Args:
-            title (str): Paper title.
+            title (str | None): Paper title; best search hit is used.
+            scholar_id (str | None): Scholar cluster id; the first entry of the
+                cluster (the paper's best version) is used.
+            author_pub_id (str | None): Author-profile publication id
+                (``"<author>:<publication>"``).
+            fill (bool): Fetch the full record. Always done for
+                ``author_pub_id``, whose stub is useless unfilled.
 
         Returns:
-            PaperDetails: Details of the first search hit.
+            dict: ``scholarly`` publication.
 
         Raises:
-            ScholarNotFoundError: If the search finds no paper.
+            ScholarInvalidArgumentError: If no identifier is given.
+            ScholarNotFoundError: If nothing matches.
+        """
+        require_identifier(title, scholar_id, author_pub_id)
+        if author_pub_id and author_pub_id.strip():
+            stub = {
+                "container_type": "Publication",
+                "source": PublicationSource.AUTHOR_PUBLICATION_ENTRY,
+                "author_pub_id": author_pub_id.strip(),
+                "bib": {},
+                "filled": False,
+            }
+            try:
+                return scholarly.fill(stub)
+            except (AttributeError, IndexError, KeyError) as e:
+                raise ScholarNotFoundError(
+                    f"No Google Scholar publication for author_pub_id "
+                    f"{author_pub_id!r} (unknown id, or Scholar returned an "
+                    "unexpected page). Use an id from a search_author result."
+                ) from e
+        if scholar_id and scholar_id.strip():
+            cluster = scholar_id.strip()
+            results = scholarly.search_pubs_custom_url(
+                f"/scholar?hl=en&cluster={cluster}"
+            )
+            pub = _first(results, f"scholar_id {cluster!r}")
+        else:
+            results = scholarly.search_pubs(title)
+            pub = _first(results, f"title {title!r}")
+        return scholarly.fill(pub) if fill else pub
+
+    def get_paper_details(
+        self,
+        title: str | None = None,
+        *,
+        scholar_id: str | None = None,
+        author_pub_id: str | None = None,
+    ) -> PaperDetails:
+        """Fetch full details and BibTeX of a paper.
+
+        Args:
+            title (str | None): Paper title (best search hit is used).
+            scholar_id (str | None): Scholar cluster id from a search result.
+            author_pub_id (str | None): Author-profile publication id.
+
+        Returns:
+            PaperDetails: Details of the identified paper.
+
+        Raises:
+            ScholarInvalidArgumentError: If no identifier is given.
+            ScholarNotFoundError: If nothing matches.
         """
         self._ensure_initialized()
-        results = scholarly.search_pubs(title)
-        pub = _first(results, f"title {title!r}")
-        pub = scholarly.fill(pub)
+        pub = self._locate_pub(title, scholar_id, author_pub_id, fill=True)
         return self._pub_to_paper_details(pub)
 
-    def search_author(self, name: str, max_pubs: int = 5) -> AuthorResult:
-        """Look up an author profile by name.
+    def search_author(
+        self,
+        name: str | None = None,
+        max_pubs: int = 5,
+        *,
+        scholar_id: str | None = None,
+    ) -> AuthorResult:
+        """Look up an author profile by Scholar id or by name.
 
         Args:
-            name (str): Author name.
+            name (str | None): Author name; the first match is used.
             max_pubs (int): Number of publications to load.
+            scholar_id (str | None): Scholar profile id (``AuthorResult.scholar_id``).
+                Takes precedence over ``name``.
 
         Returns:
-            AuthorResult: Profile of the first matching author.
+            AuthorResult: The author profile.
 
         Raises:
+            ScholarInvalidArgumentError: If neither ``name`` nor ``scholar_id`` is given.
             ScholarNotFoundError: If no author matches.
         """
+        require_author_identifier(name, scholar_id)
         self._ensure_initialized()
+        if scholar_id and scholar_id.strip():
+            author_id = scholar_id.strip()
+            try:
+                author = scholarly.search_author_id(author_id)
+                author = scholarly.fill(
+                    author,
+                    sections=["basics", "indices", "publications"],
+                    publication_limit=max_pubs,
+                )
+            except (AttributeError, IndexError, KeyError) as e:
+                raise ScholarNotFoundError(
+                    f"No Google Scholar author for scholar_id {author_id!r} "
+                    "(unknown id, or Scholar returned an unexpected page)."
+                ) from e
+            return self._author_to_result(author)
         search = scholarly.search_author(name)
         author = _first(search, f"author {name!r}")
         author = scholarly.fill(
@@ -196,50 +322,79 @@ class ScholarClient:
         return self._author_to_result(author)
 
     def get_citations(
-        self, title: str, max_results: int = 10
-    ) -> tuple[str, int, list[PaperResult]]:
-        """Fetch papers that cite the best match for a title.
+        self,
+        title: str | None = None,
+        max_results: int = 10,
+        *,
+        scholar_id: str | None = None,
+        author_pub_id: str | None = None,
+    ) -> tuple[str | None, int | None, list[PaperResult]]:
+        """Fetch papers that cite a paper.
+
+        With only ``scholar_id`` the cited paper is not fetched (saving a
+        request), so its title is ``None`` and the total comes from the result
+        page header.
 
         Args:
-            title (str): Title of the cited paper.
+            title (str | None): Title of the cited paper.
             max_results (int): Maximum number of citing papers to return.
+            scholar_id (str | None): Scholar cluster id from a search result.
+            author_pub_id (str | None): Author-profile publication id.
 
         Returns:
-            tuple[str, int, list[PaperResult]]: The matched paper's title,
-            its total citation count and the citing papers.
+            tuple[str | None, int | None, list[PaperResult]]: The cited paper's
+            title (if known), its total citation count (if known) and the
+            citing papers.
 
         Raises:
-            ScholarNotFoundError: If the search finds no paper.
+            ScholarInvalidArgumentError: If no identifier is given.
+            ScholarNotFoundError: If the paper is not found.
         """
+        require_identifier(title, scholar_id, author_pub_id)
         self._ensure_initialized()
-        results = scholarly.search_pubs(title)
-        pub = _first(results, f"title {title!r}")
-        total = pub.get("num_citations", 0)
-        citing = scholarly.citedby(pub)
+        cited_title: str | None
+        total: int | None
+        if (author_pub_id and author_pub_id.strip()) or not (
+            scholar_id and scholar_id.strip()
+        ):
+            pub = self._locate_pub(title, None, author_pub_id, fill=False)
+            total = pub.get("num_citations", 0)
+            citing = scholarly.citedby(pub)
+            cited_title = pub.get("bib", {}).get("title", title)
+        else:
+            citing = scholarly.search_citedby(scholar_id.strip())  # type: ignore[union-attr]
+            total = _safe_int(getattr(citing, "total_results", None))
+            cited_title = None
         papers: list[PaperResult] = []
         for i, cite in enumerate(citing):
             if i >= max_results:
                 break
             papers.append(self._pub_to_paper_result(cite))
-        cited_title = pub.get("bib", {}).get("title", title)
         return cited_title, total, papers
 
-    def get_bibtex(self, title: str) -> str:
-        """Get the BibTeX entry of the best match for a title.
+    def get_bibtex(
+        self,
+        title: str | None = None,
+        *,
+        scholar_id: str | None = None,
+        author_pub_id: str | None = None,
+    ) -> str:
+        """Get the BibTeX entry of a paper.
 
         Args:
-            title (str): Paper title.
+            title (str | None): Paper title (best search hit is used).
+            scholar_id (str | None): Scholar cluster id from a search result.
+            author_pub_id (str | None): Author-profile publication id.
 
         Returns:
             str: BibTeX entry.
 
         Raises:
-            ScholarNotFoundError: If the search finds no paper.
+            ScholarInvalidArgumentError: If no identifier is given.
+            ScholarNotFoundError: If nothing matches.
         """
         self._ensure_initialized()
-        results = scholarly.search_pubs(title)
-        pub = _first(results, f"title {title!r}")
-        pub = scholarly.fill(pub)
+        pub = self._locate_pub(title, scholar_id, author_pub_id, fill=True)
         return scholarly.bibtex(pub)
 
     @staticmethod
