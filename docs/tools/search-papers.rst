@@ -40,6 +40,12 @@ Parameters
      - ``bool``
      - ``True``
      - Whether to include patents in the results.
+   * - ``offset``
+     - ``int``
+     - ``0``
+     - Number of results to skip, for paging. Pass the ``next_offset`` of the
+       previous response. Scholar serves at most the first 1000 results of a
+       query; reaching past that fails with ``[INVALID_ARGUMENT]``.
 
 Return Value
 ------------
@@ -49,6 +55,17 @@ Returns a :class:`~google_scholar_search_mcp.models.SearchResponse` containing:
 - ``query`` — the original query string
 - ``total_results`` — number of results returned
 - ``papers`` — list of :class:`~google_scholar_search_mcp.models.PaperResult` objects
+- ``offset`` — the offset this page starts at
+- ``next_offset`` — offset of the next page, or ``null`` when there are no more
+  results (the page came back short, or Scholar's 1000-result limit is reached)
+
+Paging
+------
+
+Call the tool again with the same arguments and ``offset`` set to
+``next_offset``. Every page is at least one slow request to Google Scholar, so
+page only when more results are really needed; narrowing the query (years,
+more specific terms) is usually better than reading deep into a result list.
 
 Examples
 --------

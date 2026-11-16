@@ -169,15 +169,66 @@ def test_citations_by_scholar_id_is_a_single_request_flow(mock_scholarly):
 
 
 @patch("google_scholar_search_mcp.scholar.scholarly")
-def test_citations_by_title_still_works(mock_scholarly):
+def test_citations_by_title_use_the_papers_id_for_a_single_plain_request(
+    mock_scholarly,
+):
     mock_scholarly.search_pubs.return_value = iter([_fake_pub("Cited Paper")])
-    mock_scholarly.citedby.return_value = iter([_fake_pub("Citer")])
+    mock_scholarly.search_citedby.return_value = iter([_fake_pub("Citer")])
     client = _client(mock_scholarly)
 
     title, total, papers = client.get_citations("Cited Paper")
 
     assert (title, total) == ("Cited Paper", 42)
     assert len(papers) == 1
+    mock_scholarly.search_citedby.assert_called_once_with("abc123")
+    mock_scholarly.citedby.assert_not_called()
+
+
+@patch("google_scholar_search_mcp.scholar.scholarly")
+def test_citations_of_a_paper_without_an_id_fall_back_to_scholarly(mock_scholarly):
+    pub = _fake_pub("Cited Paper")
+    del pub["cites_id"]
+    mock_scholarly.search_pubs.side_effect = lambda *a, **k: iter([pub])
+    mock_scholarly.citedby.return_value = iter([_fake_pub("Citer")])
+    client = _client(mock_scholarly)
+
+    assert len(client.get_citations("Cited Paper")[2]) == 1
+    assert client.get_citations("Cited Paper", offset=10)[2] == []
+    mock_scholarly.citedby.assert_called_once()
+
+
+@patch("google_scholar_search_mcp.scholar.scholarly")
+def test_search_passes_the_offset_to_scholar(mock_scholarly):
+    mock_scholarly.search_pubs.return_value = iter([_fake_pub()])
+    client = _client(mock_scholarly)
+
+    client.search_pubs("x", offset=30)
+
+    assert mock_scholarly.search_pubs.call_args.kwargs["start_index"] == 30
+
+
+@patch("google_scholar_search_mcp.scholar.scholarly")
+def test_citation_pages_pass_the_offset_to_scholar(mock_scholarly):
+    mock_scholarly.search_citedby.side_effect = lambda *a, **k: iter([_fake_pub()])
+    mock_scholarly.search_pubs.return_value = iter([_fake_pub("Cited Paper")])
+    client = _client(mock_scholarly)
+
+    client.get_citations(scholar_id="777", offset=20)
+    client.get_citations("Cited Paper", offset=40)
+
+    calls = mock_scholarly.search_citedby.call_args_list
+    assert calls[0].args == ("777",) and calls[0].kwargs == {"start_index": 20}
+    assert calls[1].args == ("abc123",) and calls[1].kwargs == {"start_index": 40}
+
+
+@patch("google_scholar_search_mcp.scholar.scholarly")
+def test_an_offset_past_the_last_result_is_an_empty_page_not_an_error(
+    mock_scholarly,
+):
+    mock_scholarly.search_pubs.return_value = iter([])
+    client = _client(mock_scholarly)
+
+    assert client.search_pubs("x", offset=500) == []
 
 
 def test_scholar_id_comes_from_the_cited_by_link_of_a_search_result():

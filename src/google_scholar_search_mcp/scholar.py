@@ -220,6 +220,7 @@ class ScholarClient:
         year_high: int | None = None,
         sort_by: str = "relevance",
         patents: bool = True,
+        offset: int = 0,
     ) -> list[PaperResult]:
         """Search publications by keyword.
 
@@ -230,9 +231,11 @@ class ScholarClient:
             year_high (int | None): Latest publication year.
             sort_by (str): ``"relevance"`` or ``"date"``.
             patents (bool): Whether to include patents.
+            offset (int): Number of leading results to skip (for paging).
 
         Returns:
-            list[PaperResult]: Up to ``max_results`` papers.
+            list[PaperResult]: Up to ``max_results`` papers, starting at
+            ``offset``; empty when the offset is past the last result.
 
         Raises:
             ScholarBlockedError: If Scholar answers with a bot check instead
@@ -248,6 +251,7 @@ class ScholarClient:
             year_high=year_high,
             sort_by=sort_by,
             patents=patents,
+            start_index=offset,
         )
         papers: list[PaperResult] = []
         for i, pub in enumerate(results):
@@ -322,6 +326,7 @@ class ScholarClient:
         max_results: int = 10,
         *,
         scholar_id: str | None = None,
+        offset: int = 0,
     ) -> tuple[str | None, int | None, list[PaperResult]]:
         """Fetch papers that cite a paper.
 
@@ -333,6 +338,7 @@ class ScholarClient:
             title (str | None): Title of the cited paper.
             max_results (int): Maximum number of citing papers to return.
             scholar_id (str | None): Scholar cluster id from a search result.
+            offset (int): Number of leading citing papers to skip (for paging).
 
         Returns:
             tuple[str | None, int | None, list[PaperResult]]: The cited paper's
@@ -348,15 +354,24 @@ class ScholarClient:
         self._detector.reset()
         cited_title: str | None
         total: int | None
+        paging = {"start_index": offset} if offset > 0 else {}
         if scholar_id and scholar_id.strip():
-            citing = scholarly.search_citedby(scholar_id.strip())
+            citing = scholarly.search_citedby(scholar_id.strip(), **paging)
             total = _safe_int(getattr(citing, "total_results", None))
             cited_title = None
         else:
             pub = self._locate_pub(title, None, fill=False)
             total = pub.get("num_citations", 0)
-            citing = scholarly.citedby(pub)
             cited_title = pub.get("bib", {}).get("title", title)
+            cluster = _scholar_id_of(pub)
+            if cluster:
+                # One plain request per page. ``scholarly.citedby`` would walk
+                # the citations year by year for papers cited over 1000 times.
+                citing = scholarly.search_citedby(cluster, **paging)
+            elif offset > 0:
+                citing = iter(())
+            else:
+                citing = scholarly.citedby(pub)
         papers: list[PaperResult] = []
         for i, cite in enumerate(citing):
             if i >= max_results:

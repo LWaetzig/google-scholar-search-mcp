@@ -15,7 +15,7 @@ An MCP (Model Context Protocol) server for searching Google Scholar, built for A
 
 ## Features
 
-- **Paper Search**: Query Google Scholar by keyword with filtering, sorting, and pagination
+- **Paper Search**: Query Google Scholar by keyword with filtering, sorting, and paging (`offset` / `next_offset`, also for citations)
 - **Citation Tracking**: Retrieve papers that cite a given work
 - **ID Lookups**: Fetch details, citations and BibTeX by `scholar_id` instead of a fragile title search
 - **Paper Details**: Get full metadata, citations-per-year graphs, and public access info

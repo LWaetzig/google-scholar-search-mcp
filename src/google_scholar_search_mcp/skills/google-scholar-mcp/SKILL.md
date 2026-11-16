@@ -36,15 +36,20 @@ matter → `get_bibtex` only for papers the user will cite.
 
 ## Parameters
 
-- `search_papers(query, max_results=10 [1-20], year_from, year_to, sort_by="relevance"|"date", include_patents=true)`.
+- `search_papers(query, max_results=10 [1-20], year_from, year_to, sort_by="relevance"|"date", include_patents=true, offset=0)`.
   Set `include_patents=false` for academic literature.
-- `get_paper_details` / `get_citations(max_results=10 [1-20])` / `get_bibtex`
+- `get_paper_details` / `get_citations(max_results=10 [1-20], offset=0)` / `get_bibtex`
   accept `scholar_id` or `title` (`scholar_id` wins).
   **Prefer IDs** copied from an earlier result: a title search takes the first
   hit, which can be a different paper, and costs an extra request. `scholar_id` comes
   from any paper result.
   With only `scholar_id`, `get_citations` omits the cited title (one request fewer).
   Fall back to the exact title from a search result when no ID is at hand.
+- **Paging:** `search_papers` and `get_citations` return `offset` and
+  `next_offset`. For more results, repeat the call with `offset=next_offset`;
+  `null` means there are no more. Scholar serves at most the first 1000 results
+  of a query, so narrow the query (years, terms) instead of paging deep. For
+  further citation pages pass `scholar_id` rather than the title (saves a request).
 - `bulk_search(queries, max_results_per_query=5 [1-10], year_from, year_to)`
   runs queries one after another and reports per-query errors without aborting.
 
@@ -59,7 +64,8 @@ take minutes.
 
 - Plan queries up front; prefer one well-chosen query over many variations.
 - Use `bulk_search` for batches instead of many parallel calls.
-- Keep `max_results` small (5-10) and do not page for completeness unless asked.
+- Keep `max_results` small (5-10). Every page is another slow request: page
+  (`offset`) only when the user asks for more, never for completeness.
 - Do not retry in a loop. Errors start with a stable code:
   - `[BLOCKED]` (bot check, CAPTCHA, sign-in redirect): stop, tell the user.
     The server then refuses Scholar calls for a cooldown (default 15 min), so

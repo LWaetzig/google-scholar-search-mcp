@@ -103,3 +103,44 @@ async def test_scholar_id_chains_from_search_into_details(call: CallTool) -> Non
     assert not details.is_error, error_text(details)
     assert "attention" in details.structured_content["title"].lower()
     assert details.structured_content["bibtex"]
+
+
+async def test_search_pages_do_not_overlap(call: CallTool) -> None:
+    await _skip_unless_scholar_answers(call)
+    first = await call(
+        "search_papers", query="transformer neural network", max_results=5
+    )
+    assert not first.is_error, error_text(first)
+    page1 = first.structured_content
+    assert page1["offset"] == 0 and page1["next_offset"] == 5
+
+    second = await call(
+        "search_papers",
+        query="transformer neural network",
+        max_results=5,
+        offset=page1["next_offset"],
+    )
+
+    assert not second.is_error, error_text(second)
+    page2 = second.structured_content
+    assert page2["offset"] == 5 and len(page2["papers"]) == 5
+    titles1 = {p["title"] for p in page1["papers"]}
+    titles2 = {p["title"] for p in page2["papers"]}
+    assert not titles1 & titles2
+
+
+async def test_citation_pages_do_not_overlap(call: CallTool) -> None:
+    await _skip_unless_scholar_answers(call)
+    first = await call("get_citations", title=KNOWN_TITLE, max_results=3)
+    assert not first.is_error, error_text(first)
+    page1 = first.structured_content
+    assert page1["next_offset"] == 3
+
+    second = await call("get_citations", title=KNOWN_TITLE, max_results=3, offset=3)
+
+    assert not second.is_error, error_text(second)
+    page2 = second.structured_content
+    assert len(page2["citations"]) == 3
+    assert not {p["title"] for p in page1["citations"]} & {
+        p["title"] for p in page2["citations"]
+    }
