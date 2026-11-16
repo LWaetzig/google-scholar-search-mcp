@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from google_scholar_search_mcp.config import Config, ProxyType
-from scholarly.data_types import PublicationSource
 
 from google_scholar_search_mcp.errors import (
     ScholarInvalidArgumentError,
@@ -39,7 +38,6 @@ def _fake_pub(title: str = "Test Paper", year: str = "2023") -> dict:
         "pub_url": "https://example.com/paper",
         "eprint_url": "https://example.com/eprint",
         "cites_id": ["abc123"],
-        "author_pub_id": "pub_001",
     }
 
 
@@ -111,27 +109,6 @@ def test_get_bibtex(mock_scholarly):
     assert "@article" in bib
 
 
-def test_author_to_result():
-    author_data = {
-        "name": "Jane Doe",
-        "scholar_id": "scholar123",
-        "affiliation": "MIT",
-        "email_domain": "mit.edu",
-        "interests": ["AI", "ML"],
-        "citedby": 5000,
-        "hindex": 42,
-        "i10index": 100,
-        "homepage": "https://janedoe.com",
-        "publications": [_fake_pub()],
-    }
-    result = ScholarClient._author_to_result(author_data)
-    assert result.name == "Jane Doe"
-    assert result.h_index == 42
-    assert result.cited_by == 5000
-    assert len(result.publications) == 1
-    assert result.publications[0].title == "Test Paper"
-
-
 @patch("google_scholar_search_mcp.scholar.scholarly")
 @pytest.mark.parametrize("method", ["get_paper_details", "get_citations", "get_bibtex"])
 def test_title_lookups_raise_not_found(mock_scholarly, method):
@@ -143,36 +120,10 @@ def test_title_lookups_raise_not_found(mock_scholarly, method):
         getattr(client, method)("No Such Paper")
 
 
-@patch("google_scholar_search_mcp.scholar.scholarly")
-def test_search_author_raises_not_found(mock_scholarly):
-    mock_scholarly.search_author.return_value = iter([])
-
-    client = ScholarClient(_make_config())
-
-    with pytest.raises(ScholarNotFoundError, match="Nobody"):
-        client.search_author("Nobody")
-
-
 def _client(mock_scholarly: MagicMock) -> ScholarClient:
     mock_scholarly.set_timeout = MagicMock()
     mock_scholarly.set_retries = MagicMock()
     return ScholarClient(_make_config())
-
-
-@patch("google_scholar_search_mcp.scholar.scholarly")
-def test_details_by_author_pub_id_skips_search(mock_scholarly):
-    mock_scholarly.fill.side_effect = lambda stub: {**_fake_pub(), **stub}
-    mock_scholarly.bibtex.return_value = "@article{x}"
-    client = _client(mock_scholarly)
-
-    details = client.get_paper_details(author_pub_id=" auth:pub1 ")
-
-    stub = mock_scholarly.fill.call_args.args[0]
-    assert stub["author_pub_id"] == "auth:pub1"
-    assert stub["source"] == PublicationSource.AUTHOR_PUBLICATION_ENTRY
-    mock_scholarly.search_pubs.assert_not_called()
-    mock_scholarly.search_pubs_custom_url.assert_not_called()
-    assert details.bibtex == "@article{x}"
 
 
 @patch("google_scholar_search_mcp.scholar.scholarly")
@@ -190,27 +141,6 @@ def test_details_by_scholar_id_uses_cluster_url(mock_scholarly):
 
 
 @patch("google_scholar_search_mcp.scholar.scholarly")
-def test_author_pub_id_wins_over_scholar_id_and_title(mock_scholarly):
-    mock_scholarly.fill.side_effect = lambda stub: {**_fake_pub(), **stub}
-    mock_scholarly.bibtex.return_value = "@article{x}"
-    client = _client(mock_scholarly)
-
-    client.get_bibtex("Some Title", scholar_id="1", author_pub_id="a:b")
-
-    mock_scholarly.search_pubs.assert_not_called()
-    mock_scholarly.search_pubs_custom_url.assert_not_called()
-
-
-@patch("google_scholar_search_mcp.scholar.scholarly")
-def test_unknown_author_pub_id_is_not_found(mock_scholarly):
-    mock_scholarly.fill.side_effect = AttributeError("'NoneType' has no 'text'")
-    client = _client(mock_scholarly)
-
-    with pytest.raises(ScholarNotFoundError, match="author_pub_id"):
-        client.get_bibtex(author_pub_id="bad:id")
-
-
-@patch("google_scholar_search_mcp.scholar.scholarly")
 @pytest.mark.parametrize("value", [None, "", "   "])
 def test_every_lookup_requires_an_identifier(mock_scholarly, value):
     client = _client(mock_scholarly)
@@ -218,8 +148,6 @@ def test_every_lookup_requires_an_identifier(mock_scholarly, value):
     for method in (client.get_paper_details, client.get_citations, client.get_bibtex):
         with pytest.raises(ScholarInvalidArgumentError, match=r"\[INVALID_ARGUMENT\]"):
             method(value)
-    with pytest.raises(ScholarInvalidArgumentError):
-        client.search_author(value)
     mock_scholarly.search_pubs.assert_not_called()
 
 
@@ -241,20 +169,6 @@ def test_citations_by_scholar_id_is_a_single_request_flow(mock_scholarly):
 
 
 @patch("google_scholar_search_mcp.scholar.scholarly")
-def test_citations_by_author_pub_id(mock_scholarly):
-    pub = {**_fake_pub("Cited Paper"), "num_citations": 99}
-    mock_scholarly.fill.return_value = pub
-    mock_scholarly.citedby.return_value = iter([_fake_pub("Citer")])
-    client = _client(mock_scholarly)
-
-    title, total, papers = client.get_citations(author_pub_id="a:b")
-
-    assert (title, total) == ("Cited Paper", 99)
-    assert [p.title for p in papers] == ["Citer"]
-    mock_scholarly.search_pubs.assert_not_called()
-
-
-@patch("google_scholar_search_mcp.scholar.scholarly")
 def test_citations_by_title_still_works(mock_scholarly):
     mock_scholarly.search_pubs.return_value = iter([_fake_pub("Cited Paper")])
     mock_scholarly.citedby.return_value = iter([_fake_pub("Citer")])
@@ -266,28 +180,18 @@ def test_citations_by_title_still_works(mock_scholarly):
     assert len(papers) == 1
 
 
-@patch("google_scholar_search_mcp.scholar.scholarly")
-def test_search_author_by_scholar_id_skips_name_search(mock_scholarly):
-    mock_scholarly.search_author_id.return_value = {"scholar_id": "EmD_lTEAAAAJ"}
-    mock_scholarly.fill.return_value = {
-        "name": "Marie Curie",
-        "scholar_id": "EmD_lTEAAAAJ",
-        "publications": [],
-    }
-    client = _client(mock_scholarly)
+def test_scholar_id_comes_from_the_cited_by_link_of_a_search_result():
+    pub = _fake_pub()
+    del pub["cites_id"]
+    pub["citedby_url"] = (
+        "/scholar?cites=2960712678066186980&as_sdt=2005&sciodt=0,5&hl=en"
+    )
 
-    result = client.search_author(scholar_id="EmD_lTEAAAAJ", max_pubs=3)
-
-    mock_scholarly.search_author.assert_not_called()
-    mock_scholarly.search_author_id.assert_called_once_with("EmD_lTEAAAAJ")
-    assert mock_scholarly.fill.call_args.kwargs["publication_limit"] == 3
-    assert result.scholar_id == "EmD_lTEAAAAJ"
+    assert ScholarClient._pub_to_paper_result(pub).scholar_id == "2960712678066186980"
 
 
-@patch("google_scholar_search_mcp.scholar.scholarly")
-def test_unknown_author_scholar_id_is_not_found(mock_scholarly):
-    mock_scholarly.search_author_id.side_effect = IndexError("list index out of range")
-    client = _client(mock_scholarly)
+def test_an_uncited_search_result_has_no_scholar_id():
+    pub = _fake_pub()
+    del pub["cites_id"]
 
-    with pytest.raises(ScholarNotFoundError, match="scholar_id"):
-        client.search_author(scholar_id="nope")
+    assert ScholarClient._pub_to_paper_result(pub).scholar_id is None

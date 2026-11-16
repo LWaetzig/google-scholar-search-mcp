@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Browser cookies for Google Scholar (credentials, never commit)
+.google-scholar-cookies
+*.cookies
+cookies.txt

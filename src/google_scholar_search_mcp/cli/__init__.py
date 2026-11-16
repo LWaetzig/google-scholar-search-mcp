@@ -94,6 +94,22 @@ def main(argv: list[str] | None = None) -> None:
         help="skill destination (repeatable; default: user Claude + detected harnesses)",
     )
 
+    sub.add_parser(
+        "doctor",
+        help="check whether Google Scholar answers this client (one request; exit 1 if blocked)",
+    )
+
+    p_cookies = sub.add_parser(
+        "set-cookies",
+        help="save Scholar cookies and User-Agent copied from the browser's developer tools",
+    )
+    p_cookies.add_argument(
+        "--stdin", action="store_true", help="read the copied text from stdin"
+    )
+    p_cookies.add_argument(
+        "--user-agent", help="User-Agent, if the copied text does not contain one"
+    )
+
     p_skill = sub.add_parser(
         "install-skill", help="download and install the agent skill"
     )
@@ -110,6 +126,14 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
 
+    if args.command == "doctor":
+        from .doctor import run as run_doctor
+
+        sys.exit(run_doctor())
+    if args.command == "set-cookies":
+        from .cookies import run as run_cookies
+
+        sys.exit(run_cookies(from_stdin=args.stdin, user_agent=args.user_agent))
     if args.command == "setup":
         sys.exit(setup(args))
     if args.command == "install-skill":

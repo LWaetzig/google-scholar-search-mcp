@@ -21,7 +21,10 @@ from ..ratelimit_guard import RateLimitGuard
 # Must be set before the server module is imported: it reads Config at import.
 # Deliberately NOT overriding GS_MIN_DELAY / GS_MAX_DELAY: the live tests use the
 # same rate limiting as production (5-15 s), or whatever the caller configured.
+
 os.environ.setdefault("GS_MAX_RETRIES", "1")
+# Live tests must hit Scholar every time, not the in-memory cache.
+os.environ["GS_CACHE_TTL"] = "0"
 os.environ.setdefault("GS_SKILL_URL", "")
 
 from google_scholar_search_mcp import server  # noqa: E402

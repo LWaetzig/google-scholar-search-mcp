@@ -31,22 +31,6 @@ The assistant calls :ref:`search_papers` with:
 
 ----
 
-Find an Author
---------------
-
-  *"Show me Yann LeCun's Google Scholar profile."*
-
-The assistant calls :ref:`search_author` with:
-
-.. code-block:: json
-
-   {
-     "name": "Yann LeCun",
-     "max_publications": 5
-   }
-
-----
-
 Get Full Paper Details
 ----------------------
 

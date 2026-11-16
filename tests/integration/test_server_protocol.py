@@ -10,7 +10,6 @@ from .conftest import error_text
 
 EXPECTED_TOOLS = {
     "search_papers",
-    "search_author",
     "get_paper_details",
     "get_citations",
     "bulk_search",
@@ -33,10 +32,9 @@ async def test_every_tool_has_a_description_and_schema() -> None:
 
 
 ID_TOOLS = {
-    "get_paper_details": {"title", "scholar_id", "author_pub_id"},
-    "get_citations": {"title", "scholar_id", "author_pub_id"},
-    "get_bibtex": {"title", "scholar_id", "author_pub_id"},
-    "search_author": {"name", "scholar_id"},
+    "get_paper_details": {"title", "scholar_id"},
+    "get_citations": {"title", "scholar_id"},
+    "get_bibtex": {"title", "scholar_id"},
 }
 
 

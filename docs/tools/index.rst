@@ -7,7 +7,6 @@ Detailed documentation for each tool exposed by the server.
    :maxdepth: 1
 
    search-papers
-   search-author
    get-paper-details
    get-citations
    bulk-search

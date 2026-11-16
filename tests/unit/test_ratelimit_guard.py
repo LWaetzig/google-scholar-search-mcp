@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from google_scholar_search_mcp.rate_limiter import RateLimiter
+from google_scholar_search_mcp.throttle import throttle
 
 from ..ratelimit_guard import RateLimitGuard
 
@@ -25,7 +26,8 @@ def guard(monkeypatch: pytest.MonkeyPatch) -> RateLimitGuard:
 
 
 async def test_requests_through_the_limiter_are_clean(guard: RateLimitGuard) -> None:
-    limiter = RateLimiter(min_delay=0.1, max_delay=0.12)
+    throttle.configure(0.1, 0.12)
+    limiter = RateLimiter(min_delay=0, max_delay=0)
 
     await limiter.execute(_fetch, "https://scholar.google.com/scholar?q=a")
     await limiter.execute(_fetch, "https://scholar.google.com/scholar?q=b")
@@ -65,7 +67,6 @@ async def test_too_small_a_gap_is_flagged(monkeypatch: pytest.MonkeyPatch) -> No
         ("get_bibtex", {}),
         ("get_paper_details", {}),
         ("get_citations", {}),
-        ("search_author", {}),
     ],
 )
 async def test_invalid_arguments_are_rejected_before_the_limiter(

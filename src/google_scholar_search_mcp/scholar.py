@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, TypeVar
 
 from scholarly import ProxyGenerator, scholarly
-from scholarly.data_types import PublicationSource
 
-from .errors import ScholarInvalidArgumentError, ScholarNotFoundError
-from .models import AuthorResult, PaperDetails, PaperResult
+from .block_detector import BlockDetector
+from .errors import (
+    ScholarBlockedError,
+    ScholarInvalidArgumentError,
+    ScholarNotFoundError,
+)
+from .models import PaperDetails, PaperResult
+from .session_identity import login_cookie_names, parse_cookies, set_identity
+from .throttle import throttle
 
 if TYPE_CHECKING:
     from .config import Config
@@ -36,66 +43,43 @@ def _safe_int(value: object) -> int | None:
         return None
 
 
-def _first(results: Iterator[T], what: str) -> T:
-    """Return the first item of a ``scholarly`` result iterator.
+_CITES_PARAM = re.compile(r"[?&]cites=(\d+)")
+
+
+def _scholar_id_of(pub: dict) -> str | None:
+    """Find the Scholar cluster id of a ``scholarly`` publication.
+
+    Search results carry it only inside their "Cited by" link
+    (``citedby_url``, ``...?cites=<id>``); profile entries have ``cites_id``.
+    A paper nobody cites has neither.
 
     Args:
-        results (Iterator[T]): Lazy search results.
-        what (str): Description of the lookup, used in the error message.
+        pub (dict): Publication as returned by ``scholarly``.
 
     Returns:
-        T: The first result.
-
-    Raises:
-        ScholarNotFoundError: If the iterator is empty. A bare
-            ``StopIteration`` must not leave a worker thread, as it cannot
-            propagate through an ``asyncio`` future.
+        str | None: The id, or ``None`` if the publication has none.
     """
-    try:
-        return next(results)
-    except StopIteration:
-        raise ScholarNotFoundError(
-            f"No Google Scholar result for {what}. Try the exact title from a "
-            "search result, fewer words, or a different spelling. If well-known "
-            "papers also return nothing, Scholar may be silently blocking this "
-            "IP (sign-in redirect): raise GS_MIN_DELAY or set GS_PROXY_TYPE."
-        ) from None
+    cites_id = pub.get("cites_id")
+    if isinstance(cites_id, list) and cites_id:
+        return str(cites_id[0])
+    found = _CITES_PARAM.search(str(pub.get("citedby_url") or ""))
+    return found.group(1) if found else None
 
 
-def require_identifier(
-    title: str | None, scholar_id: str | None, author_pub_id: str | None
-) -> None:
+def require_identifier(title: str | None, scholar_id: str | None) -> None:
     """Ensure at least one way to identify a paper was given.
 
     Args:
         title (str | None): Paper title.
         scholar_id (str | None): Scholar cluster id (``PaperResult.scholar_id``).
-        author_pub_id (str | None): Author-profile publication id
-            (``PaperResult.author_pub_id``).
-
-    Raises:
-        ScholarInvalidArgumentError: If all three are empty.
-    """
-    if not any(v and v.strip() for v in (title, scholar_id, author_pub_id)):
-        raise ScholarInvalidArgumentError(
-            "Provide one of: author_pub_id, scholar_id or title. IDs come from "
-            "earlier search results and are more reliable than titles."
-        )
-
-
-def require_author_identifier(name: str | None, scholar_id: str | None) -> None:
-    """Ensure an author can be identified.
-
-    Args:
-        name (str | None): Author name.
-        scholar_id (str | None): Scholar profile id.
 
     Raises:
         ScholarInvalidArgumentError: If both are empty.
     """
-    if not any(v and v.strip() for v in (name, scholar_id)):
+    if not any(v and v.strip() for v in (title, scholar_id)):
         raise ScholarInvalidArgumentError(
-            "Provide scholar_id (from an earlier author result) or name."
+            "Provide scholar_id (from an earlier search result) or title. IDs are "
+            "more reliable than titles."
         )
 
 
@@ -106,10 +90,87 @@ class ScholarClient:
         """Create a client; ``scholarly`` is configured lazily on first use.
 
         Args:
-            config (Config): Timeout, retry and proxy settings.
+            config (Config): Timeout, retry, proxy, cookie and cooldown settings.
         """
         self._config = config
         self._initialized = False
+        self._detector = BlockDetector(config.block_cooldown_seconds)
+        set_identity(config.cookies, config.user_agent)
+        throttle.configure(config.min_delay_seconds, config.max_delay_seconds)
+        risky = login_cookie_names(parse_cookies(config.cookies))
+        if risky:
+            logger.warning(
+                "GS_COOKIES contains Google LOGIN cookies (%s). Use cookies from a "
+                "private window where you are NOT logged in.",
+                ", ".join(risky),
+            )
+
+    def ensure_available(self) -> None:
+        """Fail fast while Scholar is known to be blocking this client.
+
+        Raises:
+            ScholarBlockedError: During the cooldown after a detected block.
+        """
+        remaining = self._detector.cooldown_remaining()
+        if remaining > 0:
+            raise ScholarBlockedError(
+                f"Google Scholar blocked this client recently; not retrying for "
+                f"another {remaining / 60:.0f} min to avoid making it worse "
+                "(GS_BLOCK_COOLDOWN). Do not retry now; tell the user."
+            )
+
+    def _raise_if_blocked(self) -> None:
+        """Turn a block seen during this call into :class:`ScholarBlockedError`.
+
+        Raises:
+            ScholarBlockedError: If a response was a bot-check or sign-in page.
+        """
+        reason = self._detector.reason
+        if reason is None:
+            return
+        self._detector.trip()
+        if self._config.cookies:
+            advice = (
+                "The configured browser cookies (GS_COOKIES / GS_COOKIES_FILE) were "
+                "not accepted: they have probably expired. Tell the user to renew "
+                "them with `google-scholar-mcp set-cookies` (README: 'Using "
+                "browser cookies') and restart the server."
+            )
+        else:
+            advice = (
+                "Waiting, another network, browser cookies (run "
+                "`google-scholar-mcp set-cookies`) or a JavaScript-capable "
+                "proxy (GS_PROXY_TYPE=scraperapi) may help."
+            )
+        raise ScholarBlockedError(
+            f"Google Scholar is blocking this client ({reason}); it returns a "
+            f"bot check instead of results. Do not retry now; tell the user. {advice}"
+        )
+
+    def _first(self, results: Iterator[T], what: str) -> T:
+        """Return the first item of a ``scholarly`` result iterator.
+
+        Args:
+            results (Iterator[T]): Lazy search results.
+            what (str): Description of the lookup, used in the error message.
+
+        Returns:
+            T: The first result.
+
+        Raises:
+            ScholarBlockedError: If the empty result is a block page.
+            ScholarNotFoundError: If the iterator is empty. A bare
+                ``StopIteration`` must not leave a worker thread, as it cannot
+                propagate through an ``asyncio`` future.
+        """
+        try:
+            return next(results)
+        except StopIteration:
+            self._raise_if_blocked()
+            raise ScholarNotFoundError(
+                f"No Google Scholar result for {what}. Try the exact title from a "
+                "search result, fewer words, or a different spelling."
+            ) from None
 
     def _ensure_initialized(self) -> None:
         """Apply timeout, retries and proxy to ``scholarly`` once.
@@ -174,10 +235,13 @@ class ScholarClient:
             list[PaperResult]: Up to ``max_results`` papers.
 
         Raises:
+            ScholarBlockedError: If Scholar answers with a bot check instead
+                of results.
             MaxTriesExceededException: If Scholar blocks the request
                 (raised by ``scholarly``).
         """
         self._ensure_initialized()
+        self._detector.reset()
         results = scholarly.search_pubs(
             query,
             year_low=year_low,
@@ -190,28 +254,24 @@ class ScholarClient:
             if i >= max_results:
                 break
             papers.append(self._pub_to_paper_result(pub))
+        if not papers:
+            self._raise_if_blocked()
         return papers
 
     def _locate_pub(
         self,
         title: str | None,
         scholar_id: str | None,
-        author_pub_id: str | None,
         *,
         fill: bool,
     ) -> dict:
-        """Resolve a paper from an ID or title, preferring the most exact ID.
-
-        Precedence: ``author_pub_id`` > ``scholar_id`` > ``title``.
+        """Resolve a paper from an ID or title, preferring the ID.
 
         Args:
             title (str | None): Paper title; best search hit is used.
             scholar_id (str | None): Scholar cluster id; the first entry of the
                 cluster (the paper's best version) is used.
-            author_pub_id (str | None): Author-profile publication id
-                (``"<author>:<publication>"``).
-            fill (bool): Fetch the full record. Always done for
-                ``author_pub_id``, whose stub is useless unfilled.
+            fill (bool): Fetch the full record.
 
         Returns:
             dict: ``scholarly`` publication.
@@ -220,32 +280,16 @@ class ScholarClient:
             ScholarInvalidArgumentError: If no identifier is given.
             ScholarNotFoundError: If nothing matches.
         """
-        require_identifier(title, scholar_id, author_pub_id)
-        if author_pub_id and author_pub_id.strip():
-            stub = {
-                "container_type": "Publication",
-                "source": PublicationSource.AUTHOR_PUBLICATION_ENTRY,
-                "author_pub_id": author_pub_id.strip(),
-                "bib": {},
-                "filled": False,
-            }
-            try:
-                return scholarly.fill(stub)
-            except (AttributeError, IndexError, KeyError) as e:
-                raise ScholarNotFoundError(
-                    f"No Google Scholar publication for author_pub_id "
-                    f"{author_pub_id!r} (unknown id, or Scholar returned an "
-                    "unexpected page). Use an id from a search_author result."
-                ) from e
+        require_identifier(title, scholar_id)
         if scholar_id and scholar_id.strip():
             cluster = scholar_id.strip()
             results = scholarly.search_pubs_custom_url(
                 f"/scholar?hl=en&cluster={cluster}"
             )
-            pub = _first(results, f"scholar_id {cluster!r}")
+            pub = self._first(results, f"scholar_id {cluster!r}")
         else:
             results = scholarly.search_pubs(title)
-            pub = _first(results, f"title {title!r}")
+            pub = self._first(results, f"title {title!r}")
         return scholarly.fill(pub) if fill else pub
 
     def get_paper_details(
@@ -253,14 +297,12 @@ class ScholarClient:
         title: str | None = None,
         *,
         scholar_id: str | None = None,
-        author_pub_id: str | None = None,
     ) -> PaperDetails:
         """Fetch full details and BibTeX of a paper.
 
         Args:
             title (str | None): Paper title (best search hit is used).
             scholar_id (str | None): Scholar cluster id from a search result.
-            author_pub_id (str | None): Author-profile publication id.
 
         Returns:
             PaperDetails: Details of the identified paper.
@@ -270,56 +312,9 @@ class ScholarClient:
             ScholarNotFoundError: If nothing matches.
         """
         self._ensure_initialized()
-        pub = self._locate_pub(title, scholar_id, author_pub_id, fill=True)
+        self._detector.reset()
+        pub = self._locate_pub(title, scholar_id, fill=True)
         return self._pub_to_paper_details(pub)
-
-    def search_author(
-        self,
-        name: str | None = None,
-        max_pubs: int = 5,
-        *,
-        scholar_id: str | None = None,
-    ) -> AuthorResult:
-        """Look up an author profile by Scholar id or by name.
-
-        Args:
-            name (str | None): Author name; the first match is used.
-            max_pubs (int): Number of publications to load.
-            scholar_id (str | None): Scholar profile id (``AuthorResult.scholar_id``).
-                Takes precedence over ``name``.
-
-        Returns:
-            AuthorResult: The author profile.
-
-        Raises:
-            ScholarInvalidArgumentError: If neither ``name`` nor ``scholar_id`` is given.
-            ScholarNotFoundError: If no author matches.
-        """
-        require_author_identifier(name, scholar_id)
-        self._ensure_initialized()
-        if scholar_id and scholar_id.strip():
-            author_id = scholar_id.strip()
-            try:
-                author = scholarly.search_author_id(author_id)
-                author = scholarly.fill(
-                    author,
-                    sections=["basics", "indices", "publications"],
-                    publication_limit=max_pubs,
-                )
-            except (AttributeError, IndexError, KeyError) as e:
-                raise ScholarNotFoundError(
-                    f"No Google Scholar author for scholar_id {author_id!r} "
-                    "(unknown id, or Scholar returned an unexpected page)."
-                ) from e
-            return self._author_to_result(author)
-        search = scholarly.search_author(name)
-        author = _first(search, f"author {name!r}")
-        author = scholarly.fill(
-            author,
-            sections=["basics", "indices", "publications"],
-            publication_limit=max_pubs,
-        )
-        return self._author_to_result(author)
 
     def get_citations(
         self,
@@ -327,19 +322,17 @@ class ScholarClient:
         max_results: int = 10,
         *,
         scholar_id: str | None = None,
-        author_pub_id: str | None = None,
     ) -> tuple[str | None, int | None, list[PaperResult]]:
         """Fetch papers that cite a paper.
 
-        With only ``scholar_id`` the cited paper is not fetched (saving a
-        request), so its title is ``None`` and the total comes from the result
-        page header.
+        With ``scholar_id`` the cited paper is not fetched (saving a request),
+        so its title is ``None`` and the total comes from the result page
+        header.
 
         Args:
             title (str | None): Title of the cited paper.
             max_results (int): Maximum number of citing papers to return.
             scholar_id (str | None): Scholar cluster id from a search result.
-            author_pub_id (str | None): Author-profile publication id.
 
         Returns:
             tuple[str | None, int | None, list[PaperResult]]: The cited paper's
@@ -350,26 +343,27 @@ class ScholarClient:
             ScholarInvalidArgumentError: If no identifier is given.
             ScholarNotFoundError: If the paper is not found.
         """
-        require_identifier(title, scholar_id, author_pub_id)
+        require_identifier(title, scholar_id)
         self._ensure_initialized()
+        self._detector.reset()
         cited_title: str | None
         total: int | None
-        if (author_pub_id and author_pub_id.strip()) or not (
-            scholar_id and scholar_id.strip()
-        ):
-            pub = self._locate_pub(title, None, author_pub_id, fill=False)
+        if scholar_id and scholar_id.strip():
+            citing = scholarly.search_citedby(scholar_id.strip())
+            total = _safe_int(getattr(citing, "total_results", None))
+            cited_title = None
+        else:
+            pub = self._locate_pub(title, None, fill=False)
             total = pub.get("num_citations", 0)
             citing = scholarly.citedby(pub)
             cited_title = pub.get("bib", {}).get("title", title)
-        else:
-            citing = scholarly.search_citedby(scholar_id.strip())  # type: ignore[union-attr]
-            total = _safe_int(getattr(citing, "total_results", None))
-            cited_title = None
         papers: list[PaperResult] = []
         for i, cite in enumerate(citing):
             if i >= max_results:
                 break
             papers.append(self._pub_to_paper_result(cite))
+        if not papers:
+            self._raise_if_blocked()
         return cited_title, total, papers
 
     def get_bibtex(
@@ -377,14 +371,12 @@ class ScholarClient:
         title: str | None = None,
         *,
         scholar_id: str | None = None,
-        author_pub_id: str | None = None,
     ) -> str:
         """Get the BibTeX entry of a paper.
 
         Args:
             title (str | None): Paper title (best search hit is used).
             scholar_id (str | None): Scholar cluster id from a search result.
-            author_pub_id (str | None): Author-profile publication id.
 
         Returns:
             str: BibTeX entry.
@@ -394,7 +386,8 @@ class ScholarClient:
             ScholarNotFoundError: If nothing matches.
         """
         self._ensure_initialized()
-        pub = self._locate_pub(title, scholar_id, author_pub_id, fill=True)
+        self._detector.reset()
+        pub = self._locate_pub(title, scholar_id, fill=True)
         return scholarly.bibtex(pub)
 
     @staticmethod
@@ -411,8 +404,7 @@ class ScholarClient:
         author_list = bib.get("author", [])
         if isinstance(author_list, str):
             author_list = [a.strip() for a in author_list.split(" and ")]
-        cites_id = pub.get("cites_id")
-        scholar_id = cites_id[0] if isinstance(cites_id, list) and cites_id else None
+        scholar_id = _scholar_id_of(pub)
         return PaperResult(
             title=bib.get("title", "Unknown"),
             authors=author_list,
@@ -423,7 +415,6 @@ class ScholarClient:
             pub_url=pub.get("pub_url"),
             venue=bib.get("venue"),
             scholar_id=scholar_id,
-            author_pub_id=pub.get("author_pub_id"),
         )
 
     def _pub_to_paper_details(self, pub: dict) -> PaperDetails:
@@ -447,44 +438,4 @@ class ScholarClient:
             cites_per_year=pub.get("cites_per_year", {}),
             public_access=public_access,
             bibtex=scholarly.bibtex(pub),
-        )
-
-    @staticmethod
-    def _author_to_result(author: dict) -> AuthorResult:
-        """Convert a ``scholarly`` author dict to a model.
-
-        Args:
-            author (dict): Author filled via ``scholarly.fill``.
-
-        Returns:
-            AuthorResult: The profile with its publications.
-        """
-        pubs: list[PaperResult] = []
-        for pub in author.get("publications", []):
-            bib = pub.get("bib", {})
-            author_list = bib.get("author", [])
-            if isinstance(author_list, str):
-                author_list = [a.strip() for a in author_list.split(" and ")]
-            pubs.append(
-                PaperResult(
-                    title=bib.get("title", "Unknown"),
-                    authors=author_list,
-                    year=_safe_int(bib.get("pub_year")),
-                    num_citations=pub.get("num_citations", 0),
-                    url=pub.get("pub_url"),
-                    pub_url=pub.get("pub_url"),
-                    author_pub_id=pub.get("author_pub_id"),
-                )
-            )
-        return AuthorResult(
-            name=author.get("name", "Unknown"),
-            scholar_id=author.get("scholar_id"),
-            affiliation=author.get("affiliation"),
-            email_domain=author.get("email_domain"),
-            interests=author.get("interests", []),
-            cited_by=author.get("citedby", 0),
-            h_index=author.get("hindex", 0),
-            i10_index=author.get("i10index", 0),
-            publications=pubs,
-            homepage_url=author.get("homepage"),
         )

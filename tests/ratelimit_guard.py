@@ -6,7 +6,8 @@ server. The guard watches two things:
 * **No bypass:** an HTTP request to ``scholar.google.com`` must be issued from
   inside ``RateLimiter.execute``. Detected with a ``ContextVar`` that
   ``asyncio.to_thread`` copies into the worker thread.
-* **Spacing:** consecutive limiter permits are at least ``min_delay`` apart.
+* **Spacing:** consecutive Scholar requests are at least ``min_delay`` apart
+  (measured when the throttle releases them).
 
 Problems are *collected*, not raised: ``scholarly`` swallows exceptions inside
 its retry loop, which would turn a violation into a misleading "blocked" skip.
@@ -23,7 +24,9 @@ import httpx
 import pytest
 import requests
 
+from google_scholar_search_mcp.block_detector import _install
 from google_scholar_search_mcp.rate_limiter import RateLimiter
+from google_scholar_search_mcp.throttle import RequestThrottle
 
 SCHOLAR_HOST = "scholar.google.com"
 
@@ -54,7 +57,8 @@ class RateLimitGuard:
         """
         guard = self
         orig_execute = RateLimiter.execute
-        orig_wait = RateLimiter._wait
+        orig_wait = RequestThrottle.wait
+        _install()  # the throttle lives in the patched httpx send
         orig_httpx_send = httpx.Client.send
         orig_requests_send = requests.Session.send
 
@@ -65,8 +69,8 @@ class RateLimitGuard:
             finally:
                 guard._inside.reset(token)
 
-        async def wait(limiter: RateLimiter) -> None:
-            await orig_wait(limiter)
+        def wait(throttle: RequestThrottle) -> None:
+            orig_wait(throttle)
             guard.permits.append(time.monotonic())
 
         def httpx_send(client: httpx.Client, request: httpx.Request, **kw: Any):
@@ -78,7 +82,7 @@ class RateLimitGuard:
             return orig_requests_send(session, request, **kw)
 
         monkeypatch.setattr(RateLimiter, "execute", execute)
-        monkeypatch.setattr(RateLimiter, "_wait", wait)
+        monkeypatch.setattr(RequestThrottle, "wait", wait)
         monkeypatch.setattr(httpx.Client, "send", httpx_send)
         monkeypatch.setattr(requests.Session, "send", requests_send)
 

@@ -1,11 +1,11 @@
 ---
 name: google-scholar-mcp
-description: Search Google Scholar for papers, author profiles, citations and BibTeX through the google-scholar-search-mcp server. Use when the user wants to find, cite or compare academic literature, look up a researcher, see who cites a paper, or needs a BibTeX entry. Prefer arXiv tools for arXiv-only lookups; not for general web search.
+description: Search Google Scholar for papers, citations and BibTeX through the google-scholar-search-mcp server. Use when the user wants to find, cite or compare academic literature, see who cites a paper, or needs a BibTeX entry. Prefer arXiv tools for arXiv-only lookups; not for general web search.
 ---
 
 # Google Scholar research with google-scholar-search-mcp
 
-Seven tools, backed by the `scholarly` library scraping Google Scholar. If none
+Five tools, backed by the `scholarly` library scraping Google Scholar. If none
 are available, tell the user the Google Scholar MCP server is not connected
 instead of recalling paper details from memory. Never invent titles, authors,
 citation counts or BibTeX.
@@ -13,7 +13,7 @@ citation counts or BibTeX.
 ## When to use it
 
 - "Find papers on X", literature reviews, related-work sections
-- Who wrote or cites a paper; citation counts; an author's h-index and works
+- Who wrote or cites a paper; citation counts; and what an author wrote
 - A BibTeX entry for a known paper
 - Venues beyond arXiv (journals, conferences, patents)
 
@@ -29,7 +29,6 @@ tool is available.
 | Several topics at once | `bulk_search` (max 10 queries) |
 | Full metadata of one known paper | `get_paper_details` |
 | Who cites a paper | `get_citations` |
-| Author profile and top works | `search_author` |
 | Citation entry | `get_bibtex` |
 
 Typical flow: `search_papers` → `get_paper_details` for the candidates that
@@ -39,17 +38,13 @@ matter → `get_bibtex` only for papers the user will cite.
 
 - `search_papers(query, max_results=10 [1-20], year_from, year_to, sort_by="relevance"|"date", include_patents=true)`.
   Set `include_patents=false` for academic literature.
-- `search_author(name, max_publications=5 [1-20])`: use the full name; names are
-  ambiguous, so check affiliation and interests before trusting a match.
 - `get_paper_details` / `get_citations(max_results=10 [1-20])` / `get_bibtex`
-  accept `author_pub_id`, `scholar_id` or `title` (precedence in that order).
+  accept `scholar_id` or `title` (`scholar_id` wins).
   **Prefer IDs** copied from an earlier result: a title search takes the first
-  hit, which can be a different paper, and costs an extra request. `author_pub_id`
-  comes from `search_author` publications; `scholar_id` from any paper result.
+  hit, which can be a different paper, and costs an extra request. `scholar_id` comes
+  from any paper result.
   With only `scholar_id`, `get_citations` omits the cited title (one request fewer).
   Fall back to the exact title from a search result when no ID is at hand.
-- `search_author(name | scholar_id)`: pass `scholar_id` once known instead of
-  repeating the ambiguous name search.
 - `bulk_search(queries, max_results_per_query=5 [1-10], year_from, year_to)`
   runs queries one after another and reports per-query errors without aborting.
 
@@ -58,20 +53,34 @@ Values outside the stated ranges are clamped, not rejected.
 ## Rate limits: this is the important part
 
 Google Scholar blocks automated traffic. The server waits 5-15 seconds between
-requests by default, so calls are **slow** and a bulk search of 10 queries can
+requests by default (every HTTP request, so a title lookup that needs a search
+and a fetch waits twice), so calls are **slow** and a bulk search of 10 queries can
 take minutes.
 
 - Plan queries up front; prefer one well-chosen query over many variations.
 - Use `bulk_search` for batches instead of many parallel calls.
 - Keep `max_results` small (5-10) and do not page for completeness unless asked.
 - Do not retry in a loop. Errors start with a stable code:
-  - `[BLOCKED]` (CAPTCHA / max tries): stop, tell the user, and suggest
-    increasing `GS_MIN_DELAY` or configuring a proxy (`GS_PROXY_TYPE`).
+  - `[BLOCKED]` (bot check, CAPTCHA, sign-in redirect): stop, tell the user.
+    The server then refuses Scholar calls for a cooldown (default 15 min), so
+    retrying only returns the same error. Suggest waiting, another network, or
+    fresh browser cookies (the user copies a Scholar request from their browser and
+    runs `google-scholar-mcp set-cookies`; see the README) or a
+    JavaScript-capable proxy (`GS_PROXY_TYPE=scraperapi`).
   - `[RATE_LIMITED]` (throttled after retries): wait before trying again.
   - `[INVALID_ARGUMENT]`: no identifier given; supply an ID or title.
   - `[NOT_FOUND]` (no match): retrying the same input will not help; use the
     exact title from a search result or simplify the query.
-- Reuse results already in the conversation.
+- Reuse results already in the conversation. The server also caches successful
+  results in memory (default 1 h), so repeating a lookup is instant and free; it
+  does not cache errors.
+
+## Author profiles are not available
+
+Google Scholar requires a Google sign-in for author profile pages, and this
+server never uses a logged-in session, so there is no author tool. To learn what
+an author wrote, search `search_papers` with `author:"Name"` and say that the
+results are papers, not a profile (no h-index).
 
 ## Search strategy
 

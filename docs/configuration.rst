@@ -25,7 +25,7 @@ Defaults
      - Minimum pause between Scholar requests (seconds)
    * - ``max_delay_seconds``
      - ``15.0``
-     - Maximum pause — actual delay is random in ``[min, max]``
+     - Maximum pause — actual delay is random in ``[min, max]``, applied between every HTTP request to Scholar (a tool call making several requests waits several times)
    * - ``max_retries``
      - ``3``
      - Retry attempts on rate-limit errors before raising
@@ -83,6 +83,43 @@ All fields are populated from environment variables:
    * - ``GS_TIMEOUT``
      - ``timeout_seconds``
      - ``GS_TIMEOUT=60``
+   * - ``GS_COOKIES_FILE``
+     - ``cookies``
+     - ``GS_COOKIES_FILE=~/.google-scholar-cookies``
+   * - ``GS_COOKIES``
+     - ``cookies``
+     - ``GS_COOKIES='NID=...; GSP=...'``
+   * - ``GS_USER_AGENT``
+     - ``user_agent``
+     - ``GS_USER_AGENT='Mozilla/5.0 ...'``
+   * - ``GS_BLOCK_COOLDOWN``
+     - ``block_cooldown_seconds``
+     - ``GS_BLOCK_COOLDOWN=900``
+   * - ``GS_CACHE_TTL``
+     - ``cache_ttl_seconds``
+     - ``GS_CACHE_TTL=3600`` (``0`` disables)
+   * - ``GS_CACHE_SIZE``
+     - ``cache_max_entries``
+     - ``GS_CACHE_SIZE=256``
+
+----
+
+Browser Cookies (experimental)
+------------------------------
+
+Scholar's bot check needs JavaScript. Cookies (and the matching User-Agent) from
+a browser that already passed it can be supplied with ``GS_COOKIES_FILE`` (or
+``GS_COOKIES``) and ``GS_USER_AGENT``; they are sent with every Scholar request.
+Use a private window where you are **not logged in**, on the same machine and
+network as the server, and expect to renew them when they expire. Cookie values
+are never logged or printed. Verify with ``google-scholar-mcp doctor``; see the
+README for the step-by-step.
+
+``google-scholar-mcp set-cookies`` saves them for you: copy the Scholar request
+in the browser's developer tools (*Copy as cURL* or *Copy request headers*) and
+run the command. It writes cookies and User-Agent to
+``~/.config/google-scholar-mcp/cookies``, which the server reads automatically
+when neither ``GS_COOKIES_FILE`` nor ``GS_COOKIES`` is set.
 
 ----
 

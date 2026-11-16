@@ -16,6 +16,7 @@ class ScholarError(ToolError):
 
     Attributes:
         code (str): Stable machine-readable error code.
+        detail (str): The message without the ``[CODE]`` prefix.
     """
 
     code = "ERROR"
@@ -26,6 +27,7 @@ class ScholarError(ToolError):
         Args:
             message (str): Human-readable explanation, including what to do next.
         """
+        self.detail = message
         super().__init__(f"[{self.code}] {message}")
 
 
