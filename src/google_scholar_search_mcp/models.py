@@ -32,6 +32,8 @@ class SearchResponse(BaseModel):
     total_results: int
     papers: list[PaperResult]
     message: str | None = None
+    offset: int = 0
+    next_offset: int | None = None
 
 
 class BulkSearchResponse(BaseModel):
@@ -49,3 +51,5 @@ class CitationResponse(BaseModel):
     cited_paper_title: str | None = None
     total_citations: int | None = None
     citations: list[PaperResult]
+    offset: int = 0
+    next_offset: int | None = None

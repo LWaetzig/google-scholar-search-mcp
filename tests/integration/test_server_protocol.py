@@ -52,3 +52,19 @@ async def test_missing_identifier_is_invalid_argument() -> None:
         result = await client.call_tool("get_bibtex", {})
     assert result.is_error
     assert "[INVALID_ARGUMENT]" in error_text(result)
+
+
+async def test_paging_tools_expose_an_optional_offset() -> None:
+    async with Client(server.mcp) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+    for name in ("search_papers", "get_citations"):
+        schema = tools[name].input_schema
+        assert schema["properties"]["offset"]["default"] == 0, name
+        assert "offset" not in schema.get("required", []), name
+
+
+async def test_offset_past_scholars_limit_is_invalid_argument() -> None:
+    async with Client(server.mcp) as client:
+        result = await client.call_tool("search_papers", {"query": "x", "offset": 1000})
+    assert result.is_error
+    assert "[INVALID_ARGUMENT]" in error_text(result)

@@ -15,6 +15,7 @@ from .models import (
     SearchResponse,
 )
 from .rate_limiter import RateLimiter
+from .errors import ScholarInvalidArgumentError
 from .scholar import ScholarClient, require_identifier
 
 logging.basicConfig(
@@ -40,6 +41,57 @@ def _paper_key(title: str | None, scholar_id: str | None) -> tuple[str, str]:
     return ("title", normalize(title))
 
 
+SCHOLAR_RESULT_LIMIT = 1000
+
+
+def _check_offset(offset: int, max_results: int) -> int:
+    """Validate a paging offset against what Google Scholar serves.
+
+    Args:
+        offset (int): Requested number of results to skip; negatives count as 0.
+        max_results (int): Page size of the call.
+
+    Returns:
+        int: The offset to use.
+
+    Raises:
+        ScholarInvalidArgumentError: If the page would reach past Scholar's
+            limit of 1000 results per query.
+    """
+    offset = max(offset, 0)
+    if offset + max_results > SCHOLAR_RESULT_LIMIT:
+        raise ScholarInvalidArgumentError(
+            f"Google Scholar serves only the first {SCHOLAR_RESULT_LIMIT} results of a "
+            f"query (offset {offset} + {max_results} results is past that). Narrow "
+            "the query instead, e.g. with year_from / year_to or more specific terms."
+        )
+    return offset
+
+
+def _next_offset(
+    offset: int, returned: int, asked: int, total: int | None
+) -> int | None:
+    """Offset of the following page, or ``None`` when there is none.
+
+    Args:
+        offset (int): Offset of this page.
+        returned (int): Number of results on this page.
+        asked (int): Number of results that were requested.
+        total (int | None): Total number of results, when known.
+
+    Returns:
+        int | None: ``offset + returned`` while more results can exist: the
+        page came back full, the known total is not reached and Scholar's
+        1000-result limit is not hit.
+    """
+    following = offset + returned
+    if returned < asked or following >= SCHOLAR_RESULT_LIMIT:
+        return None
+    if total is not None and following >= total:
+        return None
+    return following
+
+
 async def _search(
     query: str,
     max_results: int,
@@ -47,6 +99,7 @@ async def _search(
     year_to: int | None,
     sort_by: str,
     include_patents: bool,
+    offset: int = 0,
 ) -> list[PaperResult]:
     """Run a keyword search, answering repeats from the cache."""
     key = (
@@ -57,6 +110,7 @@ async def _search(
         year_to,
         sort_by,
         include_patents,
+        offset,
     )
     if (hit := cache.get(key)) is not None:
         return hit
@@ -69,6 +123,7 @@ async def _search(
         year_high=year_to,
         sort_by=sort_by,
         patents=include_patents,
+        offset=offset,
         max_retries=config.max_retries,
     )
     cache.set(key, papers)
@@ -107,8 +162,13 @@ async def search_papers(
     year_to: int | None = None,
     sort_by: str = "relevance",
     include_patents: bool = True,
+    offset: int = 0,
 ) -> SearchResponse:
     """Search Google Scholar for academic papers by keyword.
+
+    To page, call again with ``offset`` set to the ``next_offset`` of the
+    previous response (``None`` means there are no more results). Each page
+    costs at least one slow request: only page when the user needs more.
 
     Args:
         query (str): Search query (same syntax as Google Scholar search box).
@@ -117,19 +177,29 @@ async def search_papers(
         year_to (int | None): Filter to papers published in or before this year.
         sort_by (str): Sort order — "relevance" (default) or "date".
         include_patents (bool): Include patents in results (default True).
+        offset (int): Number of results to skip (default 0). Scholar serves at
+            most the first 1000 results of a query.
 
     Returns:
-        SearchResponse: Matching papers.
+        SearchResponse: Matching papers, with ``offset`` and ``next_offset`` for paging.
 
     Raises:
         ScholarBlockedError: If Google Scholar blocks the client.
         ScholarRateLimitError: If Google Scholar throttles the request after retries.
+        ScholarInvalidArgumentError: If ``offset`` reaches past the first 1000 results.
     """
     max_results = min(max(max_results, 1), 20)
+    offset = _check_offset(offset, max_results)
     papers = await _search(
-        query, max_results, year_from, year_to, sort_by, include_patents
+        query, max_results, year_from, year_to, sort_by, include_patents, offset
     )
-    return SearchResponse(query=query, total_results=len(papers), papers=papers)
+    return SearchResponse(
+        query=query,
+        total_results=len(papers),
+        papers=papers,
+        offset=offset,
+        next_offset=_next_offset(offset, len(papers), max_results, None),
+    )
 
 
 @mcp.tool()
@@ -176,19 +246,24 @@ async def get_citations(
     title: str | None = None,
     max_results: int = 10,
     scholar_id: str | None = None,
+    offset: int = 0,
 ) -> CitationResponse:
     """Get papers that cite a given paper.
 
     With only ``scholar_id`` the cited paper's title is not fetched (one
-    request fewer) and is omitted.
+    request fewer) and is omitted. To page, call again with ``offset`` set to
+    the ``next_offset`` of the previous response (``None``: no more), and
+    prefer ``scholar_id`` for the following pages.
 
     Args:
         title (str | None): Title of the paper whose citations to retrieve.
         max_results (int): Maximum citing papers to return (1-20, default 10).
         scholar_id (str | None): ``scholar_id`` of a paper from an earlier search result.
+        offset (int): Number of citing papers to skip (default 0). Scholar
+            serves at most the first 1000.
 
     Returns:
-        CitationResponse: Citing papers, plus the cited paper's title and the total citation count when known.
+        CitationResponse: Citing papers, the cited paper's title and the total citation count when known, and ``offset`` / ``next_offset`` for paging.
 
     Raises:
         ScholarBlockedError: If Google Scholar blocks the client.
@@ -198,7 +273,8 @@ async def get_citations(
     """
     require_identifier(title, scholar_id)
     max_results = min(max(max_results, 1), 20)
-    key = ("citations", *_paper_key(title, scholar_id), max_results)
+    offset = _check_offset(offset, max_results)
+    key = ("citations", *_paper_key(title, scholar_id), max_results, offset)
     if (hit := cache.get(key)) is not None:
         return hit
     scholar.ensure_available()
@@ -207,12 +283,15 @@ async def get_citations(
         title,
         max_results=max_results,
         scholar_id=scholar_id,
+        offset=offset,
         max_retries=config.max_retries,
     )
     response = CitationResponse(
         cited_paper_title=cited_title,
         total_citations=total,
         citations=papers,
+        offset=offset,
+        next_offset=_next_offset(offset, len(papers), max_results, total),
     )
     cache.set(key, response)
     return response
@@ -228,7 +307,8 @@ async def bulk_search(
     """Search Google Scholar for multiple queries sequentially with rate limiting.
 
     Use this for batch literature reviews. Each query runs one at a time with
-    delays between them to avoid being blocked.
+    delays between them to avoid being blocked. Only first pages are returned;
+    to see more of one query, call ``search_papers`` with its ``next_offset``.
 
     Args:
         queries (list[str]): List of search queries (maximum 10).
@@ -250,7 +330,14 @@ async def bulk_search(
                 query, max_results_per_query, year_from, year_to, "relevance", True
             )
             results.append(
-                SearchResponse(query=query, total_results=len(papers), papers=papers)
+                SearchResponse(
+                    query=query,
+                    total_results=len(papers),
+                    papers=papers,
+                    next_offset=_next_offset(
+                        0, len(papers), max_results_per_query, None
+                    ),
+                )
             )
         except Exception as e:
             logger.error("Bulk search failed for query '%s': %s", query, e)

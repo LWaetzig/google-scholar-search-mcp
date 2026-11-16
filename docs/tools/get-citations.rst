@@ -31,6 +31,11 @@ Parameters
      - ``str``
      - ``None``
      - ``scholar_id`` of a paper from an earlier search result.
+   * - ``offset``
+     - ``int``
+     - ``0``
+     - Number of citing papers to skip, for paging. Pass the ``next_offset``
+       of the previous response. Scholar serves at most the first 1000.
 
 .. note::
 
@@ -47,6 +52,9 @@ Returns a :class:`~google_scholar_search_mcp.models.CitationResponse` containing
 - ``cited_paper_title`` — resolved title of the source paper; ``null`` when only ``scholar_id`` was given (saves a request)
 - ``total_citations`` — total citation count as reported by Google Scholar; ``null`` if Scholar did not report one
 - ``citations`` — list of :class:`~google_scholar_search_mcp.models.PaperResult` objects (the citing papers)
+- ``offset`` — the offset this page starts at
+- ``next_offset`` — offset of the next page, or ``null`` when there are no more
+  (short page, ``total_citations`` reached, or Scholar's 1000-result limit)
 
 Examples
 --------
